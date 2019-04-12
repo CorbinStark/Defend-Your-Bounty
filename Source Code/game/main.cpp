@@ -10,9 +10,9 @@ int main() {
 	RenderBatch* batch = &create_batch();
 
 	Game g = { GAME_IDLE };
-//	g.nextWaveTime = 5000;
-	g.nextWaveTime = 2000;
+	g.nextWaveTime = 3000;
 	g.map = load_map("data/map.txt");
+	g.money = 1000;
 	MapScene scene = load_scene();
 
 	Editor edit = { 0 };

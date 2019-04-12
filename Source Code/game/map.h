@@ -17,8 +17,10 @@
 //X Add more wall tiles for 3-way and 4-way connections
 //X have ships bring invaders to shore
 //X timer display for next wave of invaders
-//# spawn boats randomly instead of at a set spot, and find the nearest land tile to drop invaders off at
-//# money system (and display of current money)
+//X spawn boats randomly instead of at a set spot, and find the nearest land tile to drop invaders off at
+//X money system (and display of current money)
+//# boats seem to be rotated strangely (not facing the direction they are moving)
+//# 
 //# unit training
 //# houses to increase maximum unit capacity
 
@@ -28,8 +30,12 @@ const i32 SHOOT_DELAY = 170;
 const i32 CANNON_RANGE = 700;
 const i32 CANNON_DAMAGE = 2;
 const i32 WALL_HP = 80;
+const i32 WALL_COST = 100;
+const i32 GATE_COST = 20;
+const i32 CANNON_COST = 150;
 const i32 WAVE_DELAY_START = 20000;
 const i32 WAVE_DELAY_INCREMENT = 100;
+const i32 GOLD_BOUNTY = 80;
 
 const f32 MAX_SPEED = 2;
 const f32 MAX_FORCE = 2.4;
@@ -179,6 +185,7 @@ struct Game {
 	GameState state;
 	Map map;
 	BuildingType selectedBuilding;
+	u32 money;
 	u32 currentWave;
 	u32 nextWaveTime;
 	u32 timer;
@@ -628,6 +635,24 @@ Unit* get_closest_enemy(Map* map, vec2 origin, Owner targetFaction, f32* distanc
 }
 
 static inline
+vec2 get_closest_land(Map* map, vec2 origin) {
+	vec2 result = { 0, 0 };
+	f32 shortest = INT_MAX;
+
+	for (u16 x = 0; x < map->width; ++x) {
+		for (u16 y = 0; y < map->height; ++y) {
+			f32 dist = getDistanceE(x * TILE_SIZE, y * TILE_SIZE, origin.x, origin.y);
+			if (map->grid[0][x + y * map->width] != 72 && shortest > dist) {
+				shortest = dist;
+				result = { (f32)x, (f32)y };
+			}
+		}
+	}
+
+	return { result.x * TILE_SIZE, result.y * TILE_SIZE };
+}
+
+static inline
 void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse) {
 	game->timer++;
 	draw_map(batch, &game->map, scene);
@@ -639,38 +664,33 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse) {
 		game->nextWaveTime -= WAVE_DELAY_INCREMENT;
 
 		Unit boat = { 0 };
-		if (game->currentWave > 5) {
-			boat.hp = boat.maxHp = 100;
-			boat.dest = { 1000, 730 };
-			boat.state = UNIT_WALKING;
-			boat.owner = OWNER_GREEN;
-			boat.pos = { (f32)game->map.width * TILE_SIZE, (f32)game->map.height * TILE_SIZE };
-			boat.type = UNIT_SHIP;
-		}
-		else {
-			boat.hp = boat.maxHp = 100;
-			boat.dest = { 1000, 730 };
-			boat.state = UNIT_WALKING;
-			boat.owner = OWNER_GREEN;
-			boat.pos = { (f32)game->map.width * TILE_SIZE, (f32)game->map.height * TILE_SIZE };
-			boat.type = UNIT_DINGHY;
-		}
+		boat.state = UNIT_WALKING;
+		boat.owner = OWNER_GREEN;
+		boat.hp = boat.maxHp = 100;
+		boat.type = game->currentWave > 5 ? UNIT_SHIP : UNIT_DINGHY;
 
-		game->map.units.push_back(boat);
-
-		if(game->currentWave > 10)
+		for (u32 i = 0; i < game->currentWave / 2; ++i) {
+			boat.pos = { (f32)random_int(0, (f32)game->map.width * TILE_SIZE), (f32)game->map.height * TILE_SIZE };
+			boat.dest = get_closest_land(&game->map, boat.pos);
 			game->map.units.push_back(boat);
-	}
+		}
 
-	draw_text(batch, &scene->kenneyNarrow, format_text("Next Wave in: %d", (game->nextWaveTime - game->timer)/100), 70, 5, BLACK.xyz);
+		for (u32 i = game->currentWave / 2; i < game->currentWave; ++i) {
+			boat.pos = { (f32)game->map.width * TILE_SIZE, (f32)random_int(0, (f32)game->map.height * TILE_SIZE) };
+			boat.dest = get_closest_land(&game->map, boat.pos);
+			game->map.units.push_back(boat);
+		}
 
-	//set all units destination upon right click
-	if (is_button_released(MOUSE_BUTTON_RIGHT)) {
-		for (u32 i = 0; i < game->map.units.size(); ++i) {
-			if (game->map.units.at(i).owner == OWNER_GREEN)
-				game->map.units.at(i).dest = V2(mouse.x - game->map.x, mouse.y - game->map.y);
+		if (game->currentWave > 10) {
+			boat.pos = { (f32)game->map.width * TILE_SIZE, (f32)game->map.height * TILE_SIZE };
+			boat.dest = get_closest_land(&game->map, boat.pos);
+			game->map.units.push_back(boat);
 		}
 	}
+
+	draw_text(batch, &scene->kenneyNarrow, format_text("Next Wave in: %d", (game->nextWaveTime - game->timer)/100), 80, 5, BLACK.xyz);
+	draw_text(batch, &scene->kenneyNarrow, format_text("Current Wave: %d", game->currentWave), 80, 35, BLACK.xyz);
+	draw_text(batch, &scene->kenneyNarrow, format_text("Available Funds: %d gold", game->money), 80, 65, BLACK.xyz);
 
 	//health bars for walls
 	for (u16 x = 0; x < game->map.width; ++x) {
@@ -678,8 +698,10 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse) {
 			Wall* curr = &game->map.walls[x + y * game->map.width];
 
 			if (curr->active) {
-				//draw_rectangle(batch, (x * TILE_SIZE) - 32, y * TILE_SIZE, 100, 5, BLACK);
-				//draw_rectangle(batch, (x * TILE_SIZE) - 32, y * TILE_SIZE, curr->hp, 5, GREEN);
+				if (curr->hp < WALL_HP) {
+					draw_rectangle(batch, (x * TILE_SIZE) - 32, y * TILE_SIZE, 80, 5, BLACK);
+					draw_rectangle(batch, (x * TILE_SIZE) - 32, y * TILE_SIZE, curr->hp, 5, GREEN);
+				}
 			}
 		}
 	}
@@ -689,6 +711,7 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse) {
 		Unit* unit = &game->map.units[i];
 
 		if (unit->hp <= 0) {
+			game->money += GOLD_BOUNTY;
 			game->map.units.erase(game->map.units.begin() + i);
 			continue;
 		}
@@ -745,7 +768,7 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse) {
 			unit->forceToApply = { 0, 0 };
 
 			if (unit->owner == OWNER_GREEN){
-				if (unit->state == UNIT_WALKING && unit->type == UNIT_FOOTSOLDIER) {
+				if (unit->state == UNIT_WALKING && (unit->type == UNIT_FOOTSOLDIER || unit->type == UNIT_ELITE)) {
 					unit->state = UNIT_ATTACKING;
 				}
 				if (unit->type == UNIT_SHIP || unit->type == UNIT_DINGHY) {
@@ -754,16 +777,14 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse) {
 						break;
 					}
 					//spawn invaders
-					i32 numInvaders = 10;
-					if (unit->type == UNIT_DINGHY)
-						numInvaders = (i32)(game->currentWave * 2.5);
+					i32 numBoats = 0;
 
 					Unit invader = { 0 };
 					invader.type = UNIT_FOOTSOLDIER;
 					invader.state = UNIT_IDLE;
 					invader.owner = OWNER_GREEN;
 					invader.hp = 4;
-					for (u32 j = 0; j < numInvaders; ++j) {
+					for (u32 j = 0; j < 3; ++j) {
 						invader.pos = { (f32)random_int(unit->pos.x - 5, unit->pos.x + 5), (f32)random_int(unit->pos.y - 5, unit->pos.y + 5) };
 						game->map.units.push_back(invader);
 					}
@@ -881,17 +902,17 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse) {
 			game->state = GAME_MENU;
 			return;
 		}
-		tooltip(batch, &scene->kenneySquare, scene->ninepatch, "WALL\nBuilds a wall\nthat prevents\ninvaders from\npassing through.", { 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
+		tooltip(batch, &scene->kenneySquare, scene->ninepatch, "WALL\nCOST: 100 gold\nBuilds a wall\nthat prevents\ninvaders from\npassing through.", { 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
 		if (button(batch, scene->wallbutton, scene->wallbuttonDown, 10, yPos += 60, mouse)) {
 			game->selectedBuilding = BUILDING_WALL;
 			game->state = GAME_BUILD;
 		}
-		tooltip(batch, &scene->kenneySquare, scene->ninepatch, "GATE\nBuilds a gate\nthat friendly\nunits can pass\nthrough.", { 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
+		tooltip(batch, &scene->kenneySquare, scene->ninepatch, "GATE\nCOST: 20 gold\nBuilds a gate\nthat friendly\nunits can pass\nthrough.", { 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
 		if (button(batch, scene->gatebutton, scene->gatebutton_down, 10, yPos += 60, mouse)) {
 			game->selectedBuilding = BUILDING_GATE;
 			game->state = GAME_BUILD;
 		}
-		tooltip(batch, &scene->kenneySquare, scene->ninepatch, "CANNON\nBuilds a cannon\nthat shoots at\noncoming\ninvaders. Can\nonly be built on\ntop of walls.", { 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
+		tooltip(batch, &scene->kenneySquare, scene->ninepatch, "CANNON\nCOST:150 gold\nBuilds a cannon\nthat shoots at\noncoming\ninvaders. Can\nonly be built on\ntop of walls.", { 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
 		if (button(batch, scene->cannonbutton, scene->cannonbutton_down, 10, yPos += 60, mouse)) {
 			game->selectedBuilding = BUILDING_CANNON;
 			game->state = GAME_BUILD;
@@ -911,15 +932,20 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse) {
 			i32 x = (mouse.x - game->map.x) / TILE_SIZE;
 			i32 y = (mouse.y - game->map.y) / TILE_SIZE;
 			if (game->selectedBuilding == BUILDING_WALL) {
-				if (!game->map.walls[x + y * game->map.width].active || game->map.walls[x + y * game->map.width].gate) {
-					Wall wall = { 0 };
-					wall.hp = WALL_HP;
-					wall.adjacency = 6;
-					wall.gate = false;
-					wall.active = true;
-					game->map.walls[x + y * game->map.width] = wall;
+				bool isGate = game->map.walls[x + y * game->map.width].gate;
+				if (!game->map.walls[x + y * game->map.width].active || isGate) {
+					if (WALL_COST < game->money || isGate) {
+						game->money -= WALL_COST;
 
-					orient_walls(&game->map);
+						Wall wall = { 0 };
+						wall.hp = WALL_HP;
+						wall.adjacency = 6;
+						wall.gate = false;
+						wall.active = true;
+						game->map.walls[x + y * game->map.width] = wall;
+
+						orient_walls(&game->map);
+					}
 				}
 			}
 			if (game->selectedBuilding == BUILDING_GATE) {
@@ -929,14 +955,30 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse) {
 					) {
 
 					if (!game->map.walls[x + y * game->map.width].gate) {
-						Wall gate = { 0 };
-						gate.hp = WALL_HP;
-						gate.adjacency = 6;
-						gate.active = true;
-						gate.gate = true;
-						game->map.walls[x + y * game->map.width] = gate;
+						bool canPlace = false;
+						if (game->map.walls[x + y * game->map.width].active) {
+							if (GATE_COST < game->money) {
+								game->money -= GATE_COST;
+								canPlace = true;
+							}
+						}
+						if (game->map.walls[x + y * game->map.width].active == false) {
+							if (WALL_COST + GATE_COST < game->money) {
+								game->money -= WALL_COST + GATE_COST;
+								canPlace = true;
+							}
+						}
 
-						orient_walls(&game->map);
+						if (canPlace) {
+							Wall gate = { 0 };
+							gate.hp = WALL_HP;
+							gate.adjacency = 6;
+							gate.active = true;
+							gate.gate = true;
+							game->map.walls[x + y * game->map.width] = gate;
+
+							orient_walls(&game->map);
+						}
 					}
 				}
 			}
@@ -948,7 +990,9 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse) {
 						break;
 					}
 				}
-				if (game->map.walls[x + y * game->map.width].active && !cannonPresent) {
+				if (game->map.walls[x + y * game->map.width].active && !cannonPresent && CANNON_COST < game->money) {
+					game->money -= CANNON_COST;
+
 					Cannon cannon = { 0 };
 					cannon.hp = WALL_HP;
 					cannon.x = (mouse.x - game->map.x) / TILE_SIZE;
