@@ -56,14 +56,15 @@ void choose_map(RenderBatch* batch, Game* selectedMap, Game* demo, MainState* st
 		add_wave(selectedMap, format_text("%d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP));
 		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY));
 		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY, UNIT_ELITE_SHIP));
-		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_BOSS_SHIP, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_GOLIATH_SHIP, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
 		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY, UNIT_ELITE_SHIP));
 		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
 		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
 		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
-		add_wave(selectedMap, format_text("%d %d %d %d %d %d %d", UNIT_BOSS_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_ULTIMATE_BOSS_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d %d", UNIT_GOLIATH_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
 		selectedMap->currentWave = 0;
-		selectedMap->nextWaveTime = 3000;
+		selectedMap->nextWaveTime = 3200;
 		selectedMap->money = 3000;
 		selectedMap->rightSpawn = selectedMap->downSpawn = true;
 		selectedMap->map.goldpiles.push_back({5, 4, 10});
@@ -78,20 +79,21 @@ void choose_map(RenderBatch* batch, Game* selectedMap, Game* demo, MainState* st
 		selectedMap->map.walls[15 + 19 * selectedMap->map.width] = { true, false, 100, 6 };
 		selectedMap->map.turrets.push_back({ 15, 19, 0, 0, 150, TURRET_CANNON });
 		add_wave(selectedMap, format_text("%d", UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
 		add_wave(selectedMap, format_text("%d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
 		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
-		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
 		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
 		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY, UNIT_ELITE_SHIP));
-		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_BOSS_SHIP, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_GOLIATH_SHIP, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
 		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY, UNIT_ELITE_SHIP));
 		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
 		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
 		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
-		add_wave(selectedMap, format_text("%d %d %d %d %d %d %d", UNIT_BOSS_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d %d", UNIT_ULTIMATE_BOSS_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
 		selectedMap->currentWave = 0;
 		selectedMap->nextWaveTime = 2500;
-		selectedMap->money = 2500;
+		selectedMap->money = 3000;
 		selectedMap->rightSpawn = selectedMap->downSpawn = selectedMap->upSpawn = true;
 		selectedMap->map.goldpiles.push_back({ 15, 8, 10 });
 		selectedMap->map.goldpiles.push_back({ 15, 18, 10 });
@@ -99,6 +101,38 @@ void choose_map(RenderBatch* batch, Game* selectedMap, Game* demo, MainState* st
 	}
 
 	if (text_button(batch, font, "  Bluebeard's Torment (HARD)", &yInitial, mouse)) {
+		*selectedMap = { GAME_MENU };
+		selectedMap->map = load_map("data/BluebeardsTorment.txt");
+		selectedMap->map.walls[25 + 19 * selectedMap->map.width] = { true, false, 100, 6 };
+		selectedMap->map.turrets.push_back({ 25, 19, 0, 0, 150, TURRET_CANNON });
+		selectedMap->map.walls[20 + 9 * selectedMap->map.width] = { true, false, 100, 6 };
+		selectedMap->map.turrets.push_back({ 20, 9, 0, 0, 150, TURRET_CANNON });
+		selectedMap->map.walls[14 + 19 * selectedMap->map.width] = { true, false, 100, 6 };
+		selectedMap->map.turrets.push_back({ 14, 19, 0, 0, 150, TURRET_CANNON });
+		add_wave(selectedMap, format_text("%d", UNIT_DINGHY));
+
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_GOLIATH_SHIP, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_EDRIC_SHIP, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+
+		add_wave(selectedMap, format_text("%d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_GOLIATH_SHIP, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d %d", UNIT_ULTIMATE_BOSS_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		selectedMap->currentWave = 0;
+		selectedMap->nextWaveTime = 2650;
+		selectedMap->money = 2500;
+		selectedMap->rightSpawn = selectedMap->downSpawn = selectedMap->upSpawn = selectedMap->leftSpawn = true;
+		selectedMap->map.goldpiles.push_back({ 25, 18, 10 });
+		selectedMap->map.goldpiles.push_back({ 20, 10, 10 });
+		selectedMap->map.goldpiles.push_back({ 14, 18, 10 });
 		*state = MAIN_GAME;
 	}
 
@@ -228,7 +262,7 @@ Game initialize_demo_map() {
 	add_wave(&g, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
 	add_wave(&g, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
 	add_wave(&g, format_text("%d %d %d", UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
-	add_wave(&g, format_text("%d %d %d", UNIT_BOSS_SHIP, UNIT_DINGHY, UNIT_DINGHY));
+	add_wave(&g, format_text("%d %d %d", UNIT_GOLIATH_SHIP, UNIT_DINGHY, UNIT_DINGHY));
 	add_wave(&g, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
 	add_wave(&g, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
 	g.upSpawn = true;
