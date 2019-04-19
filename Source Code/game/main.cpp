@@ -1,7 +1,10 @@
 #include "bahamut.h"
 #include "map.h"
 
+#ifdef _DEBUG
+#else
 #pragma comment(linker, "/SUBSYSTEM:windows /ENTRY:mainCRTStartup")
+#endif
 
 enum MainState {
 	MAIN_TITLE,
@@ -9,6 +12,7 @@ enum MainState {
 	MAIN_CREDITS,
 	MAIN_GAME,
 	MAIN_EDITOR,
+	MAIN_CHOOSE_MAP,
 	MAIN_EXIT
 };
 
@@ -21,14 +25,94 @@ bool text_button(RenderBatch* batch, BitmapFont* font, std::string str, i32* yIn
 	bool collided = colliding({ xPos, yPos, width, height }, { mouse.x, mouse.y });
 	if (collided) {
 		str[0] = '>';
+		str[1] = ' ';
 		draw_text(batch, font, str.c_str(), xPos, yPos);
 	}
 	else {
 		str[0] = ' ';
+		str[1] = ' ';
 		draw_text(batch, font, str.c_str(), xPos, yPos);
 	}
 
 	return collided & is_button_released(MOUSE_BUTTON_LEFT);
+}
+
+static inline 
+void choose_map(RenderBatch* batch, Game* selectedMap, Game* demo, MainState* state, MapScene* scene, BitmapFont* font, vec2 mouse) {
+	i32 yInitial = (get_window_height() / 2) - (((16 * 3) + 15) * 3) + 50;
+
+	game(batch, demo, scene, mouse, true);
+
+	draw_text(batch, font, "  Defend Your Bounty!", (get_window_width() / 2) - (get_string_width(font, "  Defend Your Bounty!") / 2), 50);
+	draw_text(batch, font, "  Choose Map", (get_window_width() / 2) - (get_string_width(font, "  Choose Map") / 2), yInitial-50);
+
+	if (text_button(batch, font, "  Crankshockz Bay (EASY)", &yInitial, mouse)) {
+		*selectedMap = { GAME_MENU };
+		selectedMap->map = load_map("data/crankshockz.txt");
+		selectedMap->map.walls[5 + 6 * selectedMap->map.width] = { true, false, 100, 6 };
+		selectedMap->map.turrets.push_back({ 5, 6, 0, 0, 150, TURRET_CANNON });
+		add_wave(selectedMap, format_text("%d", UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_BOSS_SHIP, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d %d", UNIT_BOSS_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		selectedMap->currentWave = 0;
+		selectedMap->nextWaveTime = 3000;
+		selectedMap->money = 3000;
+		selectedMap->rightSpawn = selectedMap->downSpawn = true;
+		selectedMap->map.goldpiles.push_back({5, 4, 10});
+		*state = MAIN_GAME;
+	}
+
+	if (text_button(batch, font, "  Pegleg John's Bluff (NORMAL)", &yInitial, mouse)) {
+		*selectedMap = { GAME_MENU };
+		selectedMap->map = load_map("data/PeglegJohnBluff.txt");
+		selectedMap->map.walls[15 + 7 * selectedMap->map.width] = { true, false, 100, 6 };
+		selectedMap->map.turrets.push_back({ 15, 7, 0, 0, 150, TURRET_CANNON });
+		selectedMap->map.walls[15 + 19 * selectedMap->map.width] = { true, false, 100, 6 };
+		selectedMap->map.turrets.push_back({ 15, 19, 0, 0, 150, TURRET_CANNON });
+		add_wave(selectedMap, format_text("%d", UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d", UNIT_BOSS_SHIP, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d", UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		add_wave(selectedMap, format_text("%d %d %d %d %d %d %d", UNIT_BOSS_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+		selectedMap->currentWave = 0;
+		selectedMap->nextWaveTime = 2500;
+		selectedMap->money = 2500;
+		selectedMap->rightSpawn = selectedMap->downSpawn = selectedMap->upSpawn = true;
+		selectedMap->map.goldpiles.push_back({ 15, 8, 10 });
+		selectedMap->map.goldpiles.push_back({ 15, 18, 10 });
+		*state = MAIN_GAME;
+	}
+
+	if (text_button(batch, font, "  Bluebeard's Torment (HARD)", &yInitial, mouse)) {
+		*state = MAIN_GAME;
+	}
+
+	if (text_button(batch, font, "  I am NOT enjoying my life (IMPOSSIBLE)", &yInitial, mouse)) {
+		*state = MAIN_GAME;
+	}
+
+	if (text_button(batch, font, "  Back", &yInitial, mouse)) {
+		*state = MAIN_TITLE;
+	}
+
+	if (demo->timer % 100 > 50) {
+		draw_text(batch, font, "Demonstration Gameplay", (get_window_width() / 2) - (get_string_width(font, "Demonstration  Gameplay") / 2), get_window_height() - 50);
+	}
 }
 
 static inline
@@ -37,25 +121,25 @@ void title_screen(RenderBatch* batch, Game* demo, MainState* state, MapScene* sc
 
 	game(batch, demo, scene, mouse, true);
 
-	draw_text(batch, font, "Defend Your Bounty!", (get_window_width() / 2) - (get_string_width(font, "Defend Your Bounty!") / 2), 50);
+	draw_text(batch, font, "  Defend Your Bounty!", (get_window_width() / 2) - (get_string_width(font, "  Defend Your Bounty!") / 2), 50);
 
-	if (text_button(batch, font, " Start Game", &yInitial, mouse)) {
-		*state = MAIN_GAME;
+	if (text_button(batch, font, "  Play Game", &yInitial, mouse)) {
+		*state = MAIN_CHOOSE_MAP;
 	}
-	if (text_button(batch, font, " Options", &yInitial, mouse)) {
+	if (text_button(batch, font, "  Options", &yInitial, mouse)) {
 		*state = MAIN_OPTIONS;
 	}
-	if (text_button(batch, font, " Credits", &yInitial, mouse)) {
+	if (text_button(batch, font, "  Credits", &yInitial, mouse)) {
 		(*creditsScroll) = get_window_height();
 		*state = MAIN_CREDITS;
 	}
-	if (text_button(batch, font, " Exit", &yInitial, mouse)) {
+	if (text_button(batch, font, "  Exit", &yInitial, mouse)) {
 		*state = MAIN_EXIT;
 	}
 
 #ifdef _DEBUG
 	yInitial += 50;
-	if (text_button(batch, font, " Editor", &yInitial, mouse)) {
+	if (text_button(batch, font, "  Editor", &yInitial, mouse)) {
 		*state = MAIN_EDITOR;
 	}
 #endif
@@ -77,7 +161,7 @@ void credits(RenderBatch* batch, MainState* state, BitmapFont* font, f32* credit
 	draw_text(batch, font, "URL: https://opengameart.org/content/ui-pack-rpg-extension", 50, yOffset += 32);
 	draw_text(batch, font, "License: * CC0 (http://creativecommons.org/publicdomain/zero/1.0/legalcode)", 50, yOffset += 32);
 	yOffset += 32;
-	draw_text(batch, font, "Kenney UI Expansion", 50, yOffset += 32);
+	draw_text(batch, font, "Kenney UI Expansion   (This work has been modified.)", 50, yOffset += 32);
 	draw_text(batch, font, "Author: Photoshopwizard", 50, yOffset += 32);
 	draw_text(batch, font, "URL: https://opengameart.org/content/ui-pack-expansion", 50, yOffset += 32);
 	draw_text(batch, font, "License: * CC0 (http://creativecommons.org/publicdomain/zero/1.0/legalcode)", 50, yOffset += 32);
@@ -137,13 +221,16 @@ Game initialize_demo_map() {
 	g.timer = 1999;
 	g.map.x = -400;
 	g.map.y = -200;
-	add_wave(&g, format_text("%d%d%d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
-	add_wave(&g, format_text("%d%d%d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
-	add_wave(&g, format_text("%d%d%d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
-	add_wave(&g, format_text("%d%d%d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
-	add_wave(&g, format_text("%d%d%d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
-	add_wave(&g, format_text("%d%d%d", UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
-	add_wave(&g, format_text("%d%d%d", UNIT_BOSS_SHIP, UNIT_DINGHY, UNIT_DINGHY));
+	add_wave(&g, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+	add_wave(&g, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+	add_wave(&g, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+	add_wave(&g, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+	add_wave(&g, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+	add_wave(&g, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+	add_wave(&g, format_text("%d %d %d", UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
+	add_wave(&g, format_text("%d %d %d", UNIT_BOSS_SHIP, UNIT_DINGHY, UNIT_DINGHY));
+	add_wave(&g, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
+	add_wave(&g, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
 	g.upSpawn = true;
 	g.downSpawn = true;
 	g.leftSpawn = true;
@@ -170,6 +257,7 @@ Game initialize_demo_map() {
 	cannon.type = TURRET_MAGE;
 	cannon.shotDelay = 300;
 	g.map.turrets.push_back(cannon);
+	g.map.goldpiles.push_back({ 11, 8, 10 });
 	return g;
 }
 
@@ -179,6 +267,7 @@ int main() {
 	set_fps_cap(60);
 	set_clear_color(SKYBLUE);
 	set_mouse_state(MOUSE_HIDDEN);
+	set_master_volume(100);
 
 	RenderBatch* batch = &create_batch();
 	MainState state = MAIN_TITLE;
@@ -187,7 +276,7 @@ int main() {
 
 	Editor edit = { 0 };
 	edit.selectedTile = 72;
-	edit.map = create_map(30, 30);
+	edit.map = create_map(40, 30);
 
 	BitmapFont big = load_neighbors_font(3);
 	BitmapFont small = load_neighbors_font(2);
@@ -198,27 +287,7 @@ int main() {
 	f32 creditsScroll = 0;
 
 	Game demo = initialize_demo_map();
-	Game g = { GAME_IDLE };
-	g.map = load_map("data/map2.txt");
-	g.map.walls[5 + 6 * g.map.width] = { true, false, 100, 6 };
-	g.map.turrets.push_back({5, 6, 0, 0, 150, TURRET_CANNON});
-	add_wave(&g, format_text("%d", UNIT_DINGHY));
-	add_wave(&g, format_text("%d %d", UNIT_DINGHY, UNIT_DINGHY));
-	add_wave(&g, format_text("%d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
-	add_wave(&g, format_text("%d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP));
-	add_wave(&g, format_text("%d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY));
-	add_wave(&g, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY, UNIT_ELITE_SHIP));
-	add_wave(&g, format_text("%d %d %d %d %d", UNIT_BOSS_SHIP, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY, UNIT_DINGHY));
-	add_wave(&g, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_DINGHY, UNIT_ELITE_SHIP));
-	add_wave(&g, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP, UNIT_ELITE_SHIP));
-	add_wave(&g, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
-	add_wave(&g, format_text("%d", UNIT_ULTIMATE_BOSS_SHIP));
-	add_wave(&g, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
-	add_wave(&g, format_text("%d %d %d %d %d %d", UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY, UNIT_DINGHY));
-	g.currentWave = 0;
-	g.nextWaveTime = 2000;
-	g.money = 800;
-	g.rightSpawn = g.downSpawn = true;
+	Game g;
 
 	Sound blackmoorTides = load_sound("data/sounds/Blackmoor Tides Loop.wav");
 	set_sound_looping(blackmoorTides, true);
@@ -243,6 +312,11 @@ int main() {
 		if (state == MAIN_TITLE) {
 			title_screen(batch, &demo, &state, &scene, &big, mouse, &creditsScroll);
 			if (demo.map.turrets.size() == 0)
+				demo = initialize_demo_map();
+		}
+		if (state == MAIN_CHOOSE_MAP) {
+			choose_map(batch, &g, &demo, &state, &scene, &big, mouse);
+			if (goldpile_depleted(&demo.map))
 				demo = initialize_demo_map();
 		}
 		if (state == MAIN_CREDITS)

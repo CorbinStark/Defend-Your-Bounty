@@ -22,25 +22,26 @@
 //X boats seem to be rotated strangely (not facing the direction they are moving)
 //X custom waves
 //X prevent player from blocking unit paths with wall placement
-//# overworld with multiple maps
+//X map selection screen
 //# maybe small cutscene at beginning? story was part of grading criteria
-//# sound effects
-//# rain?
-//# fix place building display square so it locks to the grid when moving the camera
+//X sound effects
+//# mage invader
+//X fix place building display square so it locks to the grid when moving the camera
 //# add rock throwers (invader and a cannon)
 //# add building upgrades
 //# add repair function
+//X game pauses before first wave, lets player design base a bit before they can press a button to start the waves coming
 
 const i32 TILE_SIZE = 64;
 const i32 NUM_LAYERS = 3;
-const i32 CANNON_RANGE = 700;
+const i32 CANNON_RANGE = 600;
 const i32 CANNON_DAMAGE = 2;
 const i32 WALL_HP = 80;
 const i32 WALL_COST = 100;
 const i32 GATE_COST = 20;
 const i32 CANNON_COST = 150;
 const i32 MAGE_COST = 400;
-const i32 GOLD_BOUNTY = 60;
+const i32 GOLD_BOUNTY = 50;
 const i32 BOAT_HP = 25;
 const i32 ANIMATION_DELAY = 7;
 const i32 FIREBALL_RADIUS = 80;
@@ -74,7 +75,8 @@ enum UnitState {
 	UNIT_IDLE,
 	UNIT_WALKING,
 	UNIT_RANGING,
-	UNIT_ATTACKING
+	UNIT_ATTACKING,
+	UNIT_RETREATING
 };
 
 enum BuildingType {
@@ -94,6 +96,12 @@ enum Owner {
 
 struct Wall;
 
+struct GoldPile {
+	i16 x;
+	i16 y;
+	u8 coins;
+};
+
 struct Unit {
 	vec2 pos;
 	vec2 velocity;
@@ -105,7 +113,7 @@ struct Unit {
 	i16 maxHp;
 	u8 damage;
 	Wall* wtarget;
-	Unit* utarget;
+	GoldPile* gtarget;
 	Owner owner;
 	UnitType type;
 	UnitState state;
@@ -172,6 +180,9 @@ struct MapScene {
 	Texture fire;
 	Texture boulder;
 
+	Texture buttonlong;
+	Texture buttonlong_down;
+
 	Texture barleft;
 	Texture barmid;
 	Texture barright;
@@ -207,7 +218,7 @@ struct MapScene {
 	Sound coin[3];
 	Sound swing[3];
 
-	Texture corey;
+	Texture bigBoss;
 };
 
 struct Map {
@@ -217,6 +228,7 @@ struct Map {
 	u16 width;
 	u16 height;
 	Wall* walls;
+	std::vector<GoldPile> goldpiles;
 	std::vector<Turret> turrets;
 	std::vector<Unit> units;
 	std::vector<Projectile> projectiles;
@@ -248,8 +260,6 @@ struct StatusText {
 	std::string text;
 };
 
-const i32 MAX_RAIN = 255;
-
 struct Game {
 	GameState state;
 	Map map;
@@ -257,7 +267,6 @@ struct Game {
 	std::vector<std::vector<Unit>> waves;
 	std::vector<Notification> notifications;
 	std::vector<StatusText> statusTexts;
-	Rect rain[MAX_RAIN];
 	u8 numRain;
 	u32 money;
 	u32 currentWave;
@@ -355,7 +364,7 @@ vec2 calculate_seperation(UnitList* list, Map* map, Unit* unit) {
 
 			if (wall->active) {
 				f32 distance = getDistanceE(unit->pos.x, unit->pos.y, x * TILE_SIZE, y * TILE_SIZE);
-				if (distance < 40 && distance >= 0) {
+				if (distance < 50 && distance >= 0) {
 					vec2 pushForce = unit->pos - V2(x * TILE_SIZE, y * TILE_SIZE);
 					totalForce = totalForce + (pushForce);
 				}
@@ -395,6 +404,8 @@ MapScene load_scene() {
 	scene.fire = load_texture("data/art/fire.png", GL_LINEAR);
 	scene.goliath = load_texture("data/art/goliath.png", GL_LINEAR);
 	scene.boulder = load_texture("data/art/boulder.png", GL_LINEAR);
+	scene.buttonlong = load_texture("data/art/buttons/buttonlong.png", GL_LINEAR);
+	scene.buttonlong_down = load_texture("data/art/buttons/buttonlong_down.png", GL_LINEAR);
 
 	scene.barleft = load_texture("data/art/bar_left.png", GL_NEAREST);
 	scene.barmid = load_texture("data/art/bar_mid.png", GL_NEAREST);
@@ -438,7 +449,7 @@ MapScene load_scene() {
 	scene.swing[1] = load_sound("data/sounds/swing2.wav");
 	scene.swing[2] = load_sound("data/sounds/swing3.wav");
 
-	scene.corey = load_texture("data/art/The Ultimate Final Boss.png", GL_LINEAR);
+	scene.bigBoss = load_texture("data/art/The Ultimate Final Boss.png", GL_LINEAR);
 
 	return scene;
 }
@@ -534,6 +545,11 @@ void draw_map(RenderBatch* batch, Map* map, MapScene* scene) {
 	int y1 = (-map->y / (TILE_SIZE)) + (get_window_height() / TILE_SIZE) + PADDING;
 #undef PADDING
 
+	clamp(x0, 0, map->width);
+	clamp(y0, 0, map->height);
+	clamp(x1, 0, map->width);
+	clamp(y1, 0, map->height);
+
 	Rect dest;
 	dest.width = TILE_SIZE;
 	dest.height = TILE_SIZE;
@@ -559,11 +575,6 @@ void draw_map(RenderBatch* batch, Map* map, MapScene* scene) {
 			draw_texture_EX(batch, scene->tilesheet, src, dest);
 		}
 	}
-
-	clamp(x0, 0, map->width);
-	clamp(y0, 0, map->height);
-	clamp(x1, 0, map->width);
-	clamp(y1, 0, map->height);
 
 	//draw all other tiles above that, leave blank if water tile
 	for (u8 i = 0; i < NUM_LAYERS; ++i) {
@@ -626,6 +637,11 @@ void draw_map(RenderBatch* batch, Map* map, MapScene* scene) {
 		}
 	}
 
+	for (u16 i = 0; i < map->goldpiles.size(); ++i) {
+		GoldPile* curr = &map->goldpiles[i];
+		draw_texture_EX(batch, scene->goldpile, { (f32)(curr->coins-1) * TILE_SIZE, 0, (f32)TILE_SIZE, (f32)TILE_SIZE}, {(f32)(curr->x * TILE_SIZE) + map->x, (f32)(curr->y * TILE_SIZE) + map->y, (f32)TILE_SIZE, (f32)TILE_SIZE});
+	}
+
 	//draw units
 	for (u16 i = 0; i < map->units.size(); ++i) {
 		Unit* curr = &map->units[i];
@@ -663,7 +679,7 @@ void draw_map(RenderBatch* batch, Map* map, MapScene* scene) {
 			draw_texture_rotated(batch, scene->goliath, xPos, yPos, sin(curr->rotation) * 16);
 		}
 		if (curr->type == UNIT_ULTIMATE_BOSS) {
-			draw_texture_rotated(batch, scene->corey, xPos, yPos, sin(curr->rotation) * 16);
+			draw_texture_rotated(batch, scene->bigBoss, xPos, yPos, sin(curr->rotation) * 16);
 		}
 	}
 }
@@ -786,6 +802,26 @@ Unit* get_closest_enemy(Map* map, vec2 origin, Owner targetFaction, f32* distanc
 }
 
 static inline
+GoldPile* get_closest_goldpile(Map* map, Unit* unit, f32* distance) {
+	GoldPile* result = NULL;
+	f32 shortest = INT_MAX;
+
+	for (u16 i = 0; i < map->goldpiles.size(); ++i) {
+		GoldPile* curr = &map->goldpiles[i];
+
+		f32 dist = getDistanceE(curr->x * TILE_SIZE, curr->y * TILE_SIZE, unit->pos.x, unit->pos.y);
+		if (shortest > dist) {
+			shortest = dist;
+			result = curr;
+		}
+	}
+
+	if (distance != NULL)
+		*distance = shortest;
+	return result;
+}
+
+static inline
 vec2 get_closest_land(Map* map, vec2 origin) {
 	vec2 result = { 0, 0 };
 	f32 shortest = INT_MAX;
@@ -804,34 +840,48 @@ vec2 get_closest_land(Map* map, vec2 origin) {
 }
 
 static inline
+bool goldpile_depleted(Map* map) {
+	for (u16 i = 0; i < map->goldpiles.size(); ++i) {
+		if (map->goldpiles.at(i).coins <= 0)
+			return true;
+	}
+	return false;
+}
+
+static inline
 void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo = false) {
-	game->timer++;
 	draw_map(batch, &game->map, scene);
-	draw_texture(batch, scene->goldpile, (64 * 5) + game->map.x, (64 * 5) + game->map.y);
 
-	//if (game->numRain < MAX_RAIN)
-	//	game->rain[game->numRain++] = { (f32)random_int(0, get_window_width()), -10, 1, (f32)random_int(15, 25) };
-	//
-	//for (u32 i = 0; i < game->numRain; ++i) {
-	//	game->rain[i].y += 20;
-	//	if (game->rain[i].y > random_int(get_window_height(), get_window_height() + 275)) {
-	//		game->rain[i].y = -15;
-	//		game->rain[i].x = random_int(0, get_window_width());
-	//	}
-	//	draw_rectangle(batch, game->rain[i].x, game->rain[i].y, game->rain[i].width, game->rain[i].height, BLUE);
-	//}
+	if (!demo && game->currentWave == 0) {
+		draw_text(batch, &scene->font, "Planning Phase: Shore up the defences!", (get_window_width() / 2) - (get_string_width(&scene->font, "Planning Phase : Shore up the defences!") / 2), 50);
 
-	if (game->map.turrets.size() == 0) {
-		push_notification(game, "You have been defeated! (Just quit, there's no game over programmed in yet)");
+		i32 xPos = (get_window_width() / 2) - (scene->buttonlong.width / 2);
+		i32 yPos = get_window_height() - 100;
+		if (button(batch, scene->buttonlong, scene->buttonlong_down, xPos, yPos, mouse)) {
+			game->currentWave++;
+			game->timer = game->nextWaveTime - 50;
+		}
+		Rect button = { xPos, yPos, scene->buttonlong.width,  scene->buttonlong.height };
+		bool collided = colliding(button, mouse.x, mouse.y);
+		if (is_button_down(MOUSE_BUTTON_LEFT) && collided)
+			draw_text(batch, &scene->font, "Ready", xPos + 55, yPos + 10);
+		else
+			draw_text(batch, &scene->font, "Ready", xPos + 55, yPos + 6);
+	} 
+	else
+		game->timer++;
+
+	if (goldpile_depleted(&game->map)) {
+		push_notification(game, "Your bounty has been stolen! (Just quit, there's no game over programmed in yet)");
 	}
 
 	//new wave spawns
 	if (game->timer == game->nextWaveTime) {
 		if (game->currentWave == game->waves.size() && game->map.units.size() == 0) {
-			push_notification(game, "You have defeated the invaders!");
+			push_notification(game, "You have defeated the invaders! (Just quit, there's no victory programmed in yet)");
 			//you win this map~!
 		}
-		else {
+		else if(game->currentWave < game->waves.size()) {
 			push_notification(game, "An invasion force is spotted off the coast!");
 			game->timer = 0;
 
@@ -845,9 +895,10 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 				if (boat.type == UNIT_BOSS_SHIP)
 					push_notification(game, "Uh oh! That ship looks like a fleet leader!");
 
-				if (boat.type == UNIT_ULTIMATE_BOSS_SHIP) {
-					push_notification(game, "It comes...");
-					push_notification(game, "Pray to whatever god you believe in. You will be meeting them soon");
+				if (game->currentWave == game->waves.size() - 1) {
+					push_notification(game, "Their forces are getting weary! ");
+					push_notification(game, "This next attack will be their last. Shore up the defences.");
+					push_notification(game, "They will put everything they have on this last wave.");
 				}
 
 				bool spawnedBoat = false;
@@ -892,7 +943,7 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 			draw_texture(batch, scene->mage, (turret->x * TILE_SIZE) + game->map.x, (turret->y * TILE_SIZE) + game->map.y);
 
 		if (turret->timer % turret->shotDelay == 0 && target != NULL && dist < CANNON_RANGE) {
-			turret->rotation = get_angle({ (f32)turret->x * TILE_SIZE, (f32)turret->y * TILE_SIZE }, { target->pos.x + 15, target->pos.y + 15 });
+			turret->rotation = get_angle({ (f32)turret->x * TILE_SIZE, (f32)turret->y * TILE_SIZE }, { target->pos.x, target->pos.y });
 
 			Projectile ball = { 0 };
 			ball.owner = OWNER_PLAYER;
@@ -919,24 +970,22 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 
 		if (unit->hp <= 0) {
 			play_sound(scene->coin[random_int(0, 2)]);
-			push_status_text(game, unit->pos, format_text("+%d gold", GOLD_BOUNTY));
-			game->money += GOLD_BOUNTY;
+
+			if (unit->type == UNIT_GOLIATH) {
+				push_status_text(game, unit->pos, "+160 gold");
+				game->money += 160;
+			}
+			else {
+				push_status_text(game, unit->pos, format_text("+%d gold", GOLD_BOUNTY));
+				game->money += GOLD_BOUNTY;
+			}
+
 			game->map.units.erase(game->map.units.begin() + i);
 			continue;
 		}
 
-		if (unit->type == UNIT_ULTIMATE_BOSS) {
-			draw_text(batch, &scene->font, "???", (get_window_width() / 2) - 50, get_window_height() - 55);
-
-			f32 width = ((f32)((f32)unit->hp / (f32)unit->maxHp) * get_window_width());
-			i32 xPos = (get_window_width() / 2) - ((scene->barleft.width + width) / 2);
-			draw_texture(batch, scene->barleft, xPos, get_window_height() - 20);
-			draw_texture_EX(batch, scene->barmid, { 0, 0, (f32)scene->barmid.width, (f32)scene->barmid.height }, { (f32)(xPos += scene->barleft.width), (f32)(get_window_height() - 20), width, (f32)scene->barmid.height });
-			draw_texture(batch, scene->barright, xPos += width, get_window_height() - 20);
-		}
-
-		if (unit->type == UNIT_GOLIATH) {
-			draw_text(batch, &scene->font, "GOLIATH", (get_window_width() / 2) - 50, get_window_height() - 55);
+		if (unit->type == UNIT_ULTIMATE_BOSS || unit->type == UNIT_GOLIATH) {
+			draw_text(batch, &scene->font, unit->type == UNIT_GOLIATH ? "GOLIATH" : "???", (get_window_width() / 2) - 50, get_window_height() - 55);
 
 			f32 width = ((f32)((f32)unit->hp / (f32)unit->maxHp) * get_window_width());
 			i32 xPos = (get_window_width() / 2) - ((scene->barleft.width + width) / 2);
@@ -947,14 +996,23 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 
 		if (unit->owner == OWNER_INVADERS && unit->state == UNIT_IDLE) {
 			f32 walldist = 0;
-			f32 unitdist = 0;
+			f32 golddist = 0;
 			u16 wallx = -1;
 			u16 wally = -1;
 			//Unit* utarget = get_closest_enemy(&game->map, { unit->pos.x, unit->pos.y }, OWNER_RED, &unitdist);
+			GoldPile* gtarget = get_closest_goldpile(&game->map, unit, &golddist);
 			Wall* wtarget = get_closest_wall(&game->map, unit, &walldist, &wallx, &wally);
 			unit->wtarget = wtarget;
+			unit->gtarget = gtarget;
 
-			if (wallx >= 0 && wally >= 0) {
+			if (golddist > 0 && golddist < walldist) {
+				unit->dest = { (f32)unit->gtarget->x * TILE_SIZE, (f32)unit->gtarget->y * TILE_SIZE };
+				unit->state = UNIT_WALKING;
+			}
+			else
+				unit->gtarget = NULL;
+
+			if (wallx >= 0 && wally >= 0 && (walldist <= golddist || unit->type == UNIT_GOLIATH)) {
 				if (unit->type == UNIT_GOLIATH) {
 					unit->dest = { (f32)(wallx * TILE_SIZE), (f32)(wally * TILE_SIZE) };
 
@@ -969,12 +1027,24 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 					unit->state = UNIT_WALKING;
 				}
 			}
+			else
+				unit->wtarget = NULL;
 		}
 		if (unit->owner == OWNER_INVADERS && unit->state == UNIT_ATTACKING) {
-			unit->rotation += 0.5;
-			if ((i32)unit->rotation % 10 == 0) {
-				play_sound(scene->swing[random_int(0, 2)]);
-				unit->wtarget->hp -= unit->damage;
+			if (unit->wtarget != NULL) {
+				unit->rotation += 0.5;
+				if ((i32)unit->rotation % 10 == 0) {
+					play_sound(scene->swing[random_int(0, 2)]);
+					unit->wtarget->hp -= unit->damage;
+				}
+			}
+			else if (unit->gtarget != NULL) {
+				if (unit->gtarget->coins > 0) {
+					unit->gtarget->coins--;
+					unit->state = UNIT_RETREATING;
+					push_status_text(game, { unit->pos.x, unit->pos.y + 10 }, format_text("Coin stolen! %d coins left in your bounty!", unit->gtarget->coins));
+					unit->dest = unit->origin;
+				}
 			}
 		}
 		if (unit->owner == OWNER_INVADERS && unit->state == UNIT_RANGING) {
@@ -1018,6 +1088,11 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 			unit->origin = { 0, 0 };
 		}
 
+		u32 index = (unit->pos.x / TILE_SIZE) + (unit->pos.y / TILE_SIZE) * game->map.width;
+		if (unit->state == UNIT_RETREATING && game->map.grid[1][index] == 72) {
+			unit->type = UNIT_DINGHY;
+		}
+
 		//if unit reached destination (roughly)
 		if ((abs(unit->velocity.x) < VELOCITY_MINIMUM && abs(unit->velocity.y) < VELOCITY_MINIMUM) &&
 			(getDistanceE(unit->pos.x, unit->pos.y, unit->dest.x, unit->dest.y) < 90))
@@ -1044,7 +1119,8 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 					invader.state = UNIT_IDLE;
 					invader.owner = OWNER_INVADERS;
 					invader.hp = 4;
-					invader.damage = 1;
+					invader.damage = 2;
+					invader.origin = unit->origin;
 					if (unit->type == UNIT_DINGHY) {
 						for (u32 j = 0; j < 3; ++j) {
 							invader.pos = { (f32)random_int(unit->pos.x - 5, unit->pos.x + 5), (f32)random_int(unit->pos.y - 5, unit->pos.y + 5) };
@@ -1063,7 +1139,7 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 					}
 					if (unit->type == UNIT_BOSS_SHIP) {
 						invader.type = UNIT_GOLIATH;
-						invader.hp = invader.maxHp = 130;
+						invader.hp = invader.maxHp = 140;
 						invader.damage = 6;
 						invader.origin = { -1, -1 };
 						invader.pos = { unit->pos.x, unit->pos.y };
@@ -1153,9 +1229,12 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 			for (u16 j = 0; j < game->map.units.size(); ++j) {
 				Unit* curr = &game->map.units[j];
 
+				f32 cwidth = curr->type == UNIT_ULTIMATE_BOSS ? scene->bigBoss.width : curr->type == UNIT_GOLIATH ? scene->goliath.width : scene->attackers[0].width;
+				f32 cheight = curr->type == UNIT_ULTIMATE_BOSS ? scene->bigBoss.height : curr->type == UNIT_GOLIATH ? scene->goliath.height : scene->attackers[0].height;
+
 				if (colliding(
 					{ (f32)proj->x, (f32)proj->y, width, height },
-					{ curr->pos.x + cboxOffset, curr->pos.y + cboxOffset, (f32)scene->attackers[0].width - (cboxOffset * 2), (f32)scene->attackers[0].height - (cboxOffset * 2) }
+					{ curr->pos.x + cboxOffset, curr->pos.y + cboxOffset, cwidth - (cboxOffset * 2), cheight - (cboxOffset * 2) }
 				) && curr->owner != proj->owner) {
 
 					if (proj->type == PROJECTILE_FIREBALL) {
@@ -1283,11 +1362,16 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 			tileIsWater = true;
 		bool mouseOnSidebar = (mouse.x < scene->ninepatch[0].width * 3 && mouse.y < scene->ninepatch[0].height * 3);
 
+		i32 x = (mouse.x - game->map.x) / TILE_SIZE;
+		i32 rectx = (x * TILE_SIZE) + (i32)game->map.x;
+		i32 y = (mouse.y - game->map.y) / TILE_SIZE;
+		i32 recty = (y * TILE_SIZE) + (i32)game->map.y;
+
 		if (!mouseOnSidebar) {
 			if (tileIsWater)
 				draw_rectangle(batch, roundUp(mouse.x, TILE_SIZE) - TILE_SIZE, roundUp(mouse.y, TILE_SIZE) - TILE_SIZE, TILE_SIZE, TILE_SIZE, { 255, 100, 100, 100 });
 			else
-				draw_rectangle(batch, roundUp(mouse.x, TILE_SIZE) - TILE_SIZE, roundUp(mouse.y, TILE_SIZE) - TILE_SIZE, TILE_SIZE, TILE_SIZE, { 100, 255, 100, 100 });
+				draw_rectangle(batch, rectx, recty, TILE_SIZE, TILE_SIZE, { 100, 255, 100, 100 });
 		}
 
 		bool enemiesNearby = false;
@@ -1302,8 +1386,8 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 		if (enemiesNearby && is_button_down(MOUSE_BUTTON_LEFT))
 			push_notification(game, "Cannot build with enemies nearby");
 
-		i32 x = (mouse.x - game->map.x) / TILE_SIZE;
-		i32 y = (mouse.y - game->map.y) / TILE_SIZE;
+		x = (mouse.x - game->map.x) / TILE_SIZE;
+		y = (mouse.y - game->map.y) / TILE_SIZE;
 		//place selected building down where mouse is, then orient walls according to adjacencies
 		if (is_button_down(MOUSE_BUTTON_LEFT) && !mouseOnSidebar && x >= 0 && y >= 0 && x < game->map.width && y < game->map.height && !enemiesNearby) {
 
@@ -1454,13 +1538,13 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 	//move camera
 	if (!demo) {
 		if (is_key_down(KEY_LEFT) && game->map.x < 0)
-			game->map.x += 8;
+			game->map.x += 16;
 		if (is_key_down(KEY_RIGHT) && game->map.x > (-game->map.width * TILE_SIZE) + get_window_width())
-			game->map.x -= 8;
+			game->map.x -= 16;
 		if (is_key_down(KEY_DOWN) && game->map.y > (-game->map.height * TILE_SIZE) + get_window_height())
-			game->map.y -= 8;
+			game->map.y -= 16;
 		if (is_key_down(KEY_UP) && game->map.y < 0)
-			game->map.y += 8;
+			game->map.y += 16;
 	}
 }
 
@@ -1568,13 +1652,13 @@ void editor(RenderBatch* batch, Editor* editor, MapScene* scene, vec2 mouse) {
 	draw_map(batch, map, scene);
 
 	if (is_key_down(KEY_LEFT))
-		map->x += 8;
+		map->x += 16;
 	if (is_key_down(KEY_RIGHT))
-		map->x -= 8;
+		map->x -= 16;
 	if (is_key_down(KEY_DOWN))
-		map->y -= 8;
+		map->y -= 16;
 	if (is_key_down(KEY_UP))
-		map->y += 8;
+		map->y += 16;
 
 	if (state == EDIT_TILE) {
 		if (is_button_released(MOUSE_BUTTON_LEFT)) {
