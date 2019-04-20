@@ -5,6 +5,16 @@
 #include <random>
 #include "bahamut.h"
 
+enum MainState {
+	MAIN_TITLE,
+	MAIN_OPTIONS,
+	MAIN_CREDITS,
+	MAIN_GAME,
+	MAIN_EDITOR,
+	MAIN_CHOOSE_MAP,
+	MAIN_EXIT
+};
+
 static inline
 i32 random_int(i32 min, i32 max) {
 	static std::random_device rd;

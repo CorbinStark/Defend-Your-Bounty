@@ -25,12 +25,14 @@
 //X map selection screen
 //# maybe small cutscene at beginning? story was part of grading criteria
 //X sound effects
-//# mage invader
+//X mage invader
 //X fix place building display square so it locks to the grid when moving the camera
 //# add rock throwers (invader and a cannon)
-//# add building upgrades
-//# add repair function
+//X add sell function (sell value = (current health / max health) * normal cost)
+//X add repair function (cost = 100 - ((current health / max health) * normal cost))
 //X game pauses before first wave, lets player design base a bit before they can press a button to start the waves coming
+//X Screen scrolling when mouse on edges
+//X Hotkeys
 
 const i32 TILE_SIZE = 64;
 const i32 NUM_LAYERS = 3;
@@ -45,7 +47,10 @@ const i32 GOLD_BOUNTY = 50;
 const i32 BOAT_HP = 25;
 const i32 ANIMATION_DELAY = 7;
 const i32 FIREBALL_RADIUS = 80;
+const i32 SIDEBAR_X_OFFSET = 0;
 
+const f32 MAGE_RANGE = 450;
+const f32 STONETHROWER_RANGE = 350;
 const f32 UNIT_RANGE = 450;
 const f32 GOLIATH_RANGE = 800;
 const f32 EDRIC_RANGE = 500;
@@ -60,6 +65,7 @@ enum UnitType {
 	UNIT_ELITE_SHIP,
 	UNIT_MAGE_SHIP,
 	UNIT_STONETHROWER_SHIP,
+	UNIT_RUSH_SHIP,
 	UNIT_GOLIATH_SHIP,
 	UNIT_EDRIC_SHIP,
 	UNIT_FOOTSOLDIER,
@@ -168,6 +174,8 @@ struct Explosion {
 struct MapScene {
 	Texture redship[3];
 	Texture greenship[3];
+	Texture yellowship[3];
+	Texture whiteship[3];
 	Texture bossShip;
 	Texture cannon;
 	Texture cannonBall;
@@ -178,6 +186,8 @@ struct MapScene {
 	Texture walls_damaged;
 	Texture mage;
 	Texture attackers[2];
+	Texture attackerMage;
+	Texture attackerStonethrower;
 	Texture stonethrower;
 	Texture edric;
 	Texture goliath;
@@ -202,13 +212,16 @@ struct MapScene {
 	Texture minimizebutton_down;
 	Texture maximizebutton;
 	Texture maximizebutton_down;
-
+	Texture backbutton;
+	Texture backbutton_down;
 	Texture wallbutton;
 	Texture wallbuttonDown;
 	Texture priestbutton;
 	Texture priestbutton_down;
-	Texture trainbutton;
-	Texture trainbuttonDown;
+	Texture sellbutton;
+	Texture sellbutton_down;
+	Texture repairbutton;
+	Texture repairbutton_down;
 	Texture buildbutton;
 	Texture buildbuttonDown;
 	Texture cancelbutton;
@@ -253,7 +266,9 @@ enum GameState {
 	GAME_MENU,
 	GAME_BUILD,
 	GAME_BUILD_MENU,
-	GAME_TRAIN
+	GAME_TRAIN,
+	GAME_SELL,
+	GAME_REPAIR
 };
 
 struct Notification {
@@ -267,11 +282,23 @@ struct StatusText {
 	std::string text;
 };
 
+enum Side {
+	SIDE_NORTH,
+	SIDE_SOUTH,
+	SIDE_EAST,
+	SIDE_WEST
+};
+
+struct Group {
+	Unit unit;
+	Side side;
+};
+
 struct Game {
 	GameState state;
 	Map map;
 	BuildingType selectedBuilding;
-	std::vector<std::vector<Unit>> waves;
+	std::vector<std::vector<Group>> waves;
 	std::vector<Notification> notifications;
 	std::vector<StatusText> statusTexts;
 	u8 numRain;
@@ -279,11 +306,6 @@ struct Game {
 	u32 currentWave;
 	u32 nextWaveTime;
 	u32 timer;
-
-	bool leftSpawn;
-	bool rightSpawn;
-	bool upSpawn;
-	bool downSpawn;
 };
 
 struct Editor {
@@ -314,7 +336,7 @@ void push_status_text(Game* game, vec2 pos, std::string text) {
 
 static inline
 void add_wave(Game* game, const char* params) {
-	std::vector<Unit> wave;
+	std::vector<Group> wave;
 
 	Unit boat = { 0 };
 	boat.state = UNIT_WALKING;
@@ -326,7 +348,18 @@ void add_wave(Game* game, const char* params) {
 
 	for (u16 i = 0; i < numTokens; ++i) {
 		boat.type = (UnitType)(atoi(tokens[i]));
-		wave.push_back(boat);
+		Side side;
+		i++;
+		if (tokens[i][0] == 'n')
+			side = SIDE_NORTH;
+		if (tokens[i][0] == 's')
+			side = SIDE_SOUTH;
+		if (tokens[i][0] == 'w')
+			side = SIDE_WEST;
+		if (tokens[i][0] == 'e')
+			side = SIDE_EAST;
+
+		wave.push_back({ boat, side });
 	}
 
 	for (u16 i = 0; i < numTokens; ++i)
@@ -391,6 +424,12 @@ MapScene load_scene() {
 	scene.greenship[0] = load_texture("data/art/shipgreen0.png", GL_LINEAR);
 	scene.greenship[1] = load_texture("data/art/shipgreen1.png", GL_LINEAR);
 	scene.greenship[2] = load_texture("data/art/shipgreen2.png", GL_LINEAR);
+	scene.yellowship[0] = load_texture("data/art/shipyellow0.png", GL_LINEAR);
+	scene.yellowship[1] = load_texture("data/art/shipyellow1.png", GL_LINEAR);
+	scene.yellowship[2] = load_texture("data/art/shipyellow2.png", GL_LINEAR);
+	scene.whiteship[0] = load_texture("data/art/shipwhite0.png", GL_LINEAR);
+	scene.whiteship[1] = load_texture("data/art/shipwhite1.png", GL_LINEAR);
+	scene.whiteship[2] = load_texture("data/art/shipwhite2.png", GL_LINEAR);
 	scene.bossShip = load_texture("data/art/bossShip.png", GL_LINEAR);
 	scene.cannon = load_texture("data/art/cannon.png", GL_LINEAR);
 	scene.mage = load_texture("data/art/priest.png", GL_LINEAR);
@@ -409,6 +448,8 @@ MapScene load_scene() {
 	scene.walls_damaged = load_texture("data/art/walls_damaged.png", GL_LINEAR);
 	scene.attackers[0] = load_texture("data/art/attacker1.png", GL_LINEAR);
 	scene.attackers[1] = load_texture("data/art/attacker2.png", GL_LINEAR);
+	scene.attackerMage = load_texture("data/art/attackerMage.png", GL_LINEAR);
+	scene.attackerStonethrower = load_texture("data/art/attackerStonethrower.png", GL_LINEAR);
 	scene.explosion = load_texture("data/art/explosion.png", GL_LINEAR);
 	scene.goldpile = load_texture("data/art/goldpile.png", GL_LINEAR);
 	scene.fire = load_texture("data/art/fire.png", GL_LINEAR);
@@ -434,9 +475,12 @@ MapScene load_scene() {
 	scene.minimizebutton_down = load_texture("data/art/buttons/minimizebutton_down.png", GL_LINEAR);
 	scene.maximizebutton = load_texture("data/art/buttons/maximizebutton.png", GL_LINEAR);
 	scene.maximizebutton_down = load_texture("data/art/buttons/maximizebutton_down.png", GL_LINEAR);
-
-	scene.trainbutton = load_texture("data/art/buttons/trainbutton.png", GL_LINEAR);
-	scene.trainbuttonDown = load_texture("data/art/buttons/trainbutton_down.png", GL_LINEAR);
+	scene.backbutton = load_texture("data/art/buttons/backbutton.png", GL_LINEAR);
+	scene.backbutton_down = load_texture("data/art/buttons/backbutton_down.png", GL_LINEAR);
+	scene.repairbutton = load_texture("data/art/buttons/repairbutton.png", GL_LINEAR);
+	scene.repairbutton_down = load_texture("data/art/buttons/repairbutton_down.png", GL_LINEAR);
+	scene.sellbutton = load_texture("data/art/buttons/sellbutton.png", GL_LINEAR);
+	scene.sellbutton_down = load_texture("data/art/buttons/sellbutton_down.png", GL_LINEAR);
 	scene.buildbutton = load_texture("data/art/buttons/buildbutton.png", GL_LINEAR);
 	scene.buildbuttonDown = load_texture("data/art/buttons/buildbutton_down.png", GL_LINEAR);
 	scene.cancelbutton = load_texture("data/art/buttons/cancelbutton.png", GL_LINEAR);
@@ -484,62 +528,56 @@ Map create_map(i32 width, i32 height) {
 
 static inline
 void orient_walls(Map* map) {
-	for (u32 x = 0; x < map->width; ++x) {
-		for (u32 y = 0; y < map->height; ++y) {
+	for (i32 x = 0; x < map->width; ++x) {
+		for (i32 y = 0; y < map->height; ++y) {
 			Wall* curr = &map->walls[x + y * map->width];
-			if (map->walls[(x + 1) + y * map->width].active) {
+			if (x + 1 < map->width && map->walls[(x + 1) + y * map->width].active) {
 				curr->adjacency = 10;
 			}
-			if (map->walls[(x - 1) + y * map->width].active) {
+			if (x - 1 >= 0 && map->walls[(x - 1) + y * map->width].active) {
 				curr->adjacency = 9;
 			}
-			if (map->walls[x + (y + 1) * map->width].active) {
+			if (y + 1 < map->height && map->walls[x + (y + 1) * map->width].active) {
 				curr->adjacency = 7;
 			}
-			if (map->walls[x + (y - 1) * map->width].active) {
+			if (y - 1 >= 0 && map->walls[x + (y - 1) * map->width].active) {
 				curr->adjacency = 8;
 			}
-			if (map->walls[(x + 1) + y * map->width].active && map->walls[(x - 1) + y * map->width].active) {
+			if (x + 1 < map->width && x - 1 >= 0 && map->walls[(x + 1) + y * map->width].active && map->walls[(x - 1) + y * map->width].active) {
 				curr->adjacency = 1;
 			}
-			if (map->walls[x + (y + 1) * map->width].active && map->walls[x + (y - 1) * map->width].active) {
+			if (y + 1 < map->height && y - 1 >= 0 && map->walls[x + (y + 1) * map->width].active && map->walls[x + (y - 1) * map->width].active) {
 				curr->adjacency = 0;
 			}
-			if (map->walls[x + (y + 1) * map->width].active && map->walls[(x + 1) + y * map->width].active) {
+			if (y + 1 < map->height && x + 1 < map->width && map->walls[x + (y + 1) * map->width].active && map->walls[(x + 1) + y * map->width].active) {
 				curr->adjacency = 11;
 			}
-			if (map->walls[x + (y + 1) * map->width].active && map->walls[(x - 1) + y * map->width].active) {
+			if (y + 1 < map->height && x - 1 >= 0 && map->walls[x + (y + 1) * map->width].active && map->walls[(x - 1) + y * map->width].active) {
 				curr->adjacency = 12;
 			}
-			if (map->walls[x + (y - 1) * map->width].active && map->walls[(x + 1) + y * map->width].active) {
+			if (y - 1 >= 0 && x + 1 < map->width && map->walls[x + (y - 1) * map->width].active && map->walls[(x + 1) + y * map->width].active) {
 				curr->adjacency = 13;
 			}
-			if (map->walls[x + (y - 1) * map->width].active && map->walls[(x - 1) + y * map->width].active) {
+			if (y - 1 >= 0 && x - 1 >= 0 && map->walls[x + (y - 1) * map->width].active && map->walls[(x - 1) + y * map->width].active) {
 				curr->adjacency = 14;
 			}
-			if (map->walls[x + (y + 1) * map->width].active && map->walls[x + (y - 1) * map->width].active && map->walls[(x - 1) + y * map->width].active) {
+			if (y + 1 < map->height && y - 1 >= 0 && x - 1 >= 0 && map->walls[x + (y + 1) * map->width].active && map->walls[x + (y - 1) * map->width].active && map->walls[(x - 1) + y * map->width].active) {
 				curr->adjacency = 4;
 			}
-			if (map->walls[x + (y + 1) * map->width].active && map->walls[x + (y - 1) * map->width].active && map->walls[(x + 1) + y * map->width].active) {
+			if (y + 1 < map->height && y - 1 >= 0 && x + 1 < map->width && map->walls[x + (y + 1) * map->width].active && map->walls[x + (y - 1) * map->width].active && map->walls[(x + 1) + y * map->width].active) {
 				curr->adjacency = 5;
 			}
-			if (map->walls[x + (y + 1) * map->width].active && map->walls[(x + 1) + y * map->width].active && map->walls[(x - 1) + y * map->width].active) {
+			if (y + 1 < map->height && x + 1 < map->width && x - 1 >= 0 && map->walls[x + (y + 1) * map->width].active && map->walls[(x + 1) + y * map->width].active && map->walls[(x - 1) + y * map->width].active) {
 				curr->adjacency = 2;
 			}
-			if (map->walls[x + (y - 1) * map->width].active && map->walls[(x + 1) + y * map->width].active && map->walls[(x - 1) + y * map->width].active) {
+			if (y - 1 >= 0 && x + 1 < map->width && x - 1 >= 0 && map->walls[x + (y - 1) * map->width].active && map->walls[(x + 1) + y * map->width].active && map->walls[(x - 1) + y * map->width].active) {
 				curr->adjacency = 3;
 			}
-			if (map->walls[x + (y + 1) * map->width].active && map->walls[(x + 1) + y * map->width].active && map->walls[(x - 1) + y * map->width].active && map->walls[x + (y - 1) * map->width].active) {
+			if (y + 1 < map->height && x + 1 < map->width && x - 1 >= 0 && y - 1 >= 0 && map->walls[x + (y + 1) * map->width].active && map->walls[(x + 1) + y * map->width].active && map->walls[(x - 1) + y * map->width].active && map->walls[x + (y - 1) * map->width].active) {
 				curr->adjacency = 17;
 			}
-
-			if (curr->gate) {
-				if (map->walls[(x - 1) + y * map->width].active && map->walls[(x + 1) + y * map->width].active) {
-					curr->adjacency = 16;
-				}
-				if (map->walls[x + (y + 1) * map->width].active && map->walls[x + (y - 1) * map->width].active) {
-					curr->adjacency = 15;
-				}
+			if (y + 1 < map->height && x + 1 < map->width && x - 1 >= 0 && y - 1 >= 0 && !map->walls[x + (y + 1) * map->width].active && !map->walls[(x + 1) + y * map->width].active && !map->walls[(x - 1) + y * map->width].active && !map->walls[x + (y - 1) * map->width].active) {
+				curr->adjacency = 6;
 			}
 		}
 	}
@@ -649,7 +687,7 @@ void draw_map(RenderBatch* batch, Map* map, MapScene* scene) {
 
 	for (u16 i = 0; i < map->goldpiles.size(); ++i) {
 		GoldPile* curr = &map->goldpiles[i];
-		draw_texture_EX(batch, scene->goldpile, { (f32)(curr->coins-1) * TILE_SIZE, 0, (f32)TILE_SIZE, (f32)TILE_SIZE}, {(f32)(curr->x * TILE_SIZE) + map->x, (f32)(curr->y * TILE_SIZE) + map->y, (f32)TILE_SIZE, (f32)TILE_SIZE});
+		draw_texture_EX(batch, scene->goldpile, { (f32)(curr->coins - 1) * TILE_SIZE, 0, (f32)TILE_SIZE, (f32)TILE_SIZE }, { (f32)(curr->x * TILE_SIZE) + map->x, (f32)(curr->y * TILE_SIZE) + map->y, (f32)TILE_SIZE, (f32)TILE_SIZE });
 	}
 
 	//draw units
@@ -666,6 +704,30 @@ void draw_map(RenderBatch* batch, Map* map, MapScene* scene) {
 			if (curr->hp <= 10)
 				draw_texture_rotated(batch, scene->greenship[2], xPos, yPos, curr->rotation);
 		}
+		if (curr->type == UNIT_MAGE_SHIP) {
+			if (curr->hp > 18)
+				draw_texture_rotated(batch, scene->redship[0], xPos, yPos, curr->rotation);
+			if (curr->hp <= 18 && curr->hp > 10)
+				draw_texture_rotated(batch, scene->redship[1], xPos, yPos, curr->rotation);
+			if (curr->hp <= 10)
+				draw_texture_rotated(batch, scene->redship[2], xPos, yPos, curr->rotation);
+		}
+		if (curr->type == UNIT_STONETHROWER_SHIP) {
+			if (curr->hp > 18)
+				draw_texture_rotated(batch, scene->yellowship[0], xPos, yPos, curr->rotation);
+			if (curr->hp <= 18 && curr->hp > 10)
+				draw_texture_rotated(batch, scene->yellowship[1], xPos, yPos, curr->rotation);
+			if (curr->hp <= 10)
+				draw_texture_rotated(batch, scene->yellowship[2], xPos, yPos, curr->rotation);
+		}
+		if (curr->type == UNIT_RUSH_SHIP) {
+			if (curr->hp > 18)
+				draw_texture_rotated(batch, scene->whiteship[0], xPos, yPos, curr->rotation);
+			if (curr->hp <= 18 && curr->hp > 10)
+				draw_texture_rotated(batch, scene->whiteship[1], xPos, yPos, curr->rotation);
+			if (curr->hp <= 10)
+				draw_texture_rotated(batch, scene->whiteship[2], xPos, yPos, curr->rotation);
+		}
 		if (curr->type == UNIT_GOLIATH_SHIP || curr->type == UNIT_EDRIC_SHIP || curr->type == UNIT_ULTIMATE_BOSS_SHIP) {
 			scene->bossShip.width *= 1.5;
 			scene->bossShip.height *= 1.5;
@@ -680,7 +742,10 @@ void draw_map(RenderBatch* batch, Map* map, MapScene* scene) {
 				yPos - (scene->attackers[0].height / 6), 0);
 		}
 		if (curr->type == UNIT_STONETHROWER) {
-			draw_texture_rotated(batch, scene->stonethrower, xPos, yPos, sin(curr->rotation) * 16);
+			draw_texture_rotated(batch, scene->attackerStonethrower, xPos, yPos, sin(curr->rotation) * 16);
+		}
+		if (curr->type == UNIT_MAGE) {
+			draw_texture_rotated(batch, scene->attackerMage, xPos, yPos, sin(curr->rotation) * 16);
 		}
 		if (curr->type == UNIT_EDRIC) {
 			draw_texture_rotated(batch, scene->edric, xPos, yPos, sin(curr->rotation) * 16);
@@ -759,12 +824,9 @@ Map load_map(const char* filename) {
 		fscanf(file, "%d %d %d %d %d", &x, &y, &building.hp);
 		map.walls[x + y * map.width] = building;
 	}
-	orient_walls(&map);
 
 	fclose(file);
 
-	//TODO: There's some SUPER weird bug going on where the boats wont spawn the correct amount of units or leave beach if this isnt here...
-	//most baffling bug I've had in awhile.
 	Unit unit = { 0 };
 	for (u32 i = 0; i < 40; ++i) {
 		map.units.push_back(unit);
@@ -774,12 +836,8 @@ Map load_map(const char* filename) {
 	return map;
 }
 
-//
-//	GET CLOSEST
-//
-
 static inline
-Wall* get_closest_wall(Map* map, Unit* unit, f32* distance, u16* xRef, u16* yRef) {
+Wall* get_closest_wall(Map* map, Unit* unit, f32* distance, u16* xRef, u16* yRef, bool random = false) {
 	Wall* result = NULL;
 	f32 shortest = INT_MAX;
 
@@ -787,6 +845,9 @@ Wall* get_closest_wall(Map* map, Unit* unit, f32* distance, u16* xRef, u16* yRef
 		for (u16 y = 0; y < map->height; ++y) {
 			f32 dist = getDistanceE(x * TILE_SIZE, y * TILE_SIZE, unit->pos.x, unit->pos.y);
 			if (map->walls[x + y * map->width].active && shortest > dist) {
+				if (random && random_int(0, 100) < 50)
+					continue;
+
 				shortest = dist;
 				result = &map->walls[x + y * map->width];
 				*xRef = x;
@@ -850,6 +911,9 @@ vec2 get_closest_land(Map* map, vec2 origin) {
 		for (u16 y = 0; y < map->height; ++y) {
 			f32 dist = getDistanceE(x * TILE_SIZE, y * TILE_SIZE, origin.x, origin.y);
 			if (map->grid[0][x + y * map->width] != 72 && shortest > dist) {
+				if (random_int(0, 100) < 50)
+					continue;
+
 				shortest = dist;
 				result = { (f32)x, (f32)y };
 			}
@@ -869,7 +933,7 @@ bool goldpile_depleted(Map* map) {
 }
 
 static inline
-void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo = false) {
+void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState* mainstate, bool demo = false) {
 	draw_map(batch, &game->map, scene);
 
 	if (goldpile_depleted(&game->map)) {
@@ -882,17 +946,16 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 			push_notification(game, "You have defeated the invaders! (Just quit, there's no victory programmed in yet)");
 			//you win this map~!
 		}
-		else if(game->currentWave < game->waves.size()) {
+		else if (game->currentWave < game->waves.size()) {
 			push_notification(game, "An invasion force is spotted off the coast!");
 			game->timer = 0;
 
-			i32 sideToSpawn = random_int(0, 4);
 			u16 numBoats = game->waves.at(game->currentWave).size();
 
 			for (u32 i = 0; i < numBoats; ++i) {
-				i32 sideToSpawn = random_int(0, 40);
 
-				Unit boat = game->waves.at(game->currentWave).at(i);
+				Side side = game->waves.at(game->currentWave).at(i).side;
+				Unit boat = game->waves.at(game->currentWave).at(i).unit;
 				if (boat.type == UNIT_GOLIATH_SHIP)
 					push_notification(game, "That ship... the Goliath comes.");
 
@@ -903,25 +966,17 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 					push_notification(game, "They will put everything they have on this last attack!");
 				}
 
-				bool spawnedBoat = false;
-				while (!spawnedBoat) {
-					if (sideToSpawn >= 0 && sideToSpawn < 10 && game->upSpawn) {
-						boat.pos = { (f32)random_int(0, (f32)game->map.width * TILE_SIZE), 0 };
-						spawnedBoat = true;
-					}
-					if (sideToSpawn >= 10 && sideToSpawn < 20 && game->downSpawn) {
-						boat.pos = { (f32)random_int(0, (f32)game->map.width * TILE_SIZE), (f32)game->map.height * TILE_SIZE };
-						spawnedBoat = true;
-					}
-					if (sideToSpawn >= 20 && sideToSpawn < 30 && game->rightSpawn) {
-						boat.pos = { (f32)game->map.width * TILE_SIZE, (f32)random_int(0, (f32)game->map.width * TILE_SIZE) };
-						spawnedBoat = true;
-					}
-					if (sideToSpawn >= 30 && sideToSpawn <= 40 && game->leftSpawn) {
-						boat.pos = { 0, (f32)random_int(0, (f32)game->map.width * TILE_SIZE) };
-						spawnedBoat = true;
-					}
-					sideToSpawn = random_int(0, 40);
+				if (side == SIDE_NORTH) {
+					boat.pos = { (f32)random_int(0, (f32)game->map.width * TILE_SIZE), 0 };
+				}
+				if (side == SIDE_SOUTH) {
+					boat.pos = { (f32)random_int(0, (f32)game->map.width * TILE_SIZE), (f32)game->map.height * TILE_SIZE };
+				}
+				if (side == SIDE_EAST) {
+					boat.pos = { (f32)game->map.width * TILE_SIZE, (f32)random_int(0, (f32)game->map.width * TILE_SIZE) };
+				}
+				if (side == SIDE_WEST) {
+					boat.pos = { 0, (f32)random_int(0, (f32)game->map.width * TILE_SIZE) };
 				}
 				boat.dest = get_closest_land(&game->map, boat.pos);
 				boat.origin = boat.pos;
@@ -945,7 +1000,7 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 			draw_texture(batch, scene->mage, (turret->x * TILE_SIZE) + game->map.x, (turret->y * TILE_SIZE) + game->map.y);
 
 		if (turret->timer % turret->shotDelay == 0 && target != NULL && dist < CANNON_RANGE) {
-			turret->rotation = get_angle({ (f32)turret->x * TILE_SIZE, (f32)turret->y * TILE_SIZE }, { target->pos.x, target->pos.y });
+			turret->rotation = get_angle({ (f32)turret->x * TILE_SIZE, (f32)turret->y * TILE_SIZE }, { target->pos.x + (random_int(6, scene->attackerMage.width) - 10), target->pos.y + random_int(6, (scene->attackerMage.height) - 10) });
 
 			Projectile ball = { 0 };
 			ball.owner = OWNER_PLAYER;
@@ -1002,7 +1057,6 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 			f32 golddist = 0;
 			u16 wallx = -1;
 			u16 wally = -1;
-			//Unit* utarget = get_closest_enemy(&game->map, { unit->pos.x, unit->pos.y }, OWNER_RED, &unitdist);
 			GoldPile* gtarget = get_closest_goldpile(&game->map, unit, &golddist);
 			Wall* wtarget = get_closest_wall(&game->map, unit, &walldist, &wallx, &wally);
 			unit->wtarget = wtarget;
@@ -1015,7 +1069,7 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 			else
 				unit->gtarget = NULL;
 
-			if (wallx >= 0 && wally >= 0 && (walldist <= golddist || unit->type == UNIT_GOLIATH)) {
+			if (wallx >= 0 && wally >= 0 && (walldist <= golddist || unit->type == UNIT_GOLIATH || unit->type == UNIT_MAGE || unit->type == UNIT_STONETHROWER || unit->type == UNIT_EDRIC)) {
 				if (unit->type == UNIT_GOLIATH) {
 					unit->dest = { (f32)(wallx * TILE_SIZE), (f32)(wally * TILE_SIZE) };
 
@@ -1023,6 +1077,20 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 						unit->origin = { -1, -1 };
 
 					unit->state = UNIT_WALKING;
+				}
+				else if (unit->type == UNIT_MAGE || unit->type == UNIT_STONETHROWER || unit->type == UNIT_EDRIC) {
+					f32 angle = get_angle({ (f32)(wallx * TILE_SIZE), (f32)wally * TILE_SIZE }, unit->pos);
+					vec2 dest = {
+						(wallx * TILE_SIZE) + cos(deg_to_rad(angle)) * (unit->type == UNIT_MAGE ? MAGE_RANGE : STONETHROWER_RANGE),
+						(wally * TILE_SIZE) + sin(deg_to_rad(angle)) * (unit->type == UNIT_MAGE ? MAGE_RANGE : STONETHROWER_RANGE)
+					};
+
+					unit->state = UNIT_WALKING;
+					if (getDistanceE(unit->pos.x, unit->pos.y, (wallx * TILE_SIZE), (wally * TILE_SIZE)) <= unit->type == UNIT_MAGE ? MAGE_RANGE : STONETHROWER_RANGE)
+						unit->dest = dest;
+					else
+						unit->state = UNIT_RANGING;
+					unit->origin = { (f32)(wallx * TILE_SIZE), (f32)wally * TILE_SIZE };
 				}
 				else {
 					//unit->utarget = utarget;
@@ -1045,15 +1113,55 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 				if (unit->gtarget->coins > 0) {
 					unit->gtarget->coins--;
 					unit->state = UNIT_RETREATING;
-					push_status_text(game, { unit->pos.x, unit->pos.y + 10 }, format_text("Coin stolen! %d coins left in your bounty!", unit->gtarget->coins));
+					push_status_text(game, { unit->pos.x, unit->pos.y + 10 }, format_text("%d coins left", unit->gtarget->coins));
+					push_notification(game, "A coin has been stolen!");
 					unit->dest = unit->origin;
 				}
 			}
 		}
 		if (unit->owner == OWNER_INVADERS && unit->state == UNIT_RANGING) {
-			unit->rotation += 0.10;
-			if ((i32)unit->rotation % 10 == 0) {
+			unit->rotation += unit->type == UNIT_STONETHROWER ? 0.17 : 0.098;
 
+			if (unit->type == UNIT_EDRIC && (i32)unit->rotation == 16) {
+				u16 wall1x, wall1y, wall2x, wall2y;
+				f32 wall1dist, wall2dist;
+				Wall* wtarget1 = get_closest_wall(&game->map, unit, &wall1dist, &wall1x, &wall1y, true);
+				Wall* wtarget2 = get_closest_wall(&game->map, unit, &wall2dist, &wall2x, &wall2y, true);
+
+				unit->rotation = 0;
+				Projectile ball = { 0 };
+				ball.owner = OWNER_INVADERS;
+				ball.x = unit->pos.x + (scene->attackerMage.width / 2) - (18 / 2);
+				ball.y = unit->pos.y + (scene->attackerMage.height / 2) - (39 / 2);
+
+				ball.rotation = get_angle(unit->pos, { unit->origin.x + (TILE_SIZE / 2), unit->origin.y + (TILE_SIZE / 2) });
+
+				ball.type = PROJECTILE_FIREBALL;
+				ball.animation = create_animation("fire", scene->fire, 2, 18, 39, 6);
+
+				game->map.projectiles.push_back(ball);
+				ball.rotation = get_angle(unit->pos, { (f32)(wall1x * TILE_SIZE) + 32, (f32)(wall1y * TILE_SIZE) + 32 });
+				game->map.projectiles.push_back(ball);
+				ball.rotation = get_angle(unit->pos, { (f32)(wall2x * TILE_SIZE) + 32, (f32)(wall2y * TILE_SIZE) + 32 });
+				game->map.projectiles.push_back(ball);
+			}
+
+			if ((i32)unit->rotation == 16) {
+				unit->rotation = 0;
+				Projectile ball = { 0 };
+				ball.rotation = get_angle(unit->pos, { unit->origin.x + random_int(6, (TILE_SIZE / 2) + 6), unit->origin.y + random_int(6, (TILE_SIZE / 2) + 6) });
+				ball.owner = OWNER_INVADERS;
+				ball.x = unit->pos.x + (scene->attackerMage.width / 2) - (18 / 2);
+				ball.y = unit->pos.y + (scene->attackerMage.height / 2) - (39 / 2);
+
+				if (unit->type == UNIT_MAGE) {
+					ball.type = PROJECTILE_FIREBALL;
+					ball.animation = create_animation("fire", scene->fire, 2, 18, 39, 6);
+				}
+				else if (unit->type == UNIT_STONETHROWER) {
+					ball.type = PROJECTILE_STONE;
+				}
+				game->map.projectiles.push_back(ball);
 			}
 		}
 
@@ -1070,7 +1178,7 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 		unit->velocity = unit->velocity + (SCALING_FACTOR * unit->forceToApply);
 		truncate(&unit->velocity, MAX_SPEED);
 
-		if (unit->type == UNIT_ELITE_SHIP || unit->type == UNIT_DINGHY || unit->type == UNIT_GOLIATH_SHIP || unit->type == UNIT_EDRIC_SHIP || unit->type == UNIT_STONETHROWER_SHIP || unit->type == UNIT_MAGE_SHIP || unit->type == UNIT_ULTIMATE_BOSS_SHIP)
+		if (unit->type == UNIT_ELITE_SHIP || unit->type == UNIT_DINGHY || unit->type == UNIT_RUSH_SHIP || unit->type == UNIT_GOLIATH_SHIP || unit->type == UNIT_EDRIC_SHIP || unit->type == UNIT_STONETHROWER_SHIP || unit->type == UNIT_MAGE_SHIP || unit->type == UNIT_ULTIMATE_BOSS_SHIP)
 			unit->rotation = atan2(unit->velocity.y, unit->velocity.x) * (180 / 3.14159) - 90;
 		unit->pos = unit->pos + unit->velocity;
 
@@ -1114,7 +1222,7 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 				if (unit->state == UNIT_WALKING && (unit->type == UNIT_GOLIATH)) {
 					unit->state = UNIT_ATTACKING;
 				}
-				if (unit->type == UNIT_ELITE_SHIP || unit->type == UNIT_DINGHY || unit->type == UNIT_EDRIC_SHIP || unit->type == UNIT_STONETHROWER_SHIP || unit->type == UNIT_GOLIATH_SHIP || unit->type == UNIT_MAGE_SHIP || unit->type == UNIT_ULTIMATE_BOSS_SHIP) {
+				if (unit->type == UNIT_ELITE_SHIP || unit->type == UNIT_DINGHY || unit->type == UNIT_RUSH_SHIP || unit->type == UNIT_EDRIC_SHIP || unit->type == UNIT_STONETHROWER_SHIP || unit->type == UNIT_GOLIATH_SHIP || unit->type == UNIT_MAGE_SHIP || unit->type == UNIT_ULTIMATE_BOSS_SHIP) {
 					if (getDistanceE(unit->pos.x, unit->pos.y, unit->origin.x, unit->origin.y) < 95) {
 						game->map.units.erase(game->map.units.begin() + i);
 						break;
@@ -1133,6 +1241,49 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 							game->map.units.push_back(invader);
 						}
 					}
+					if (unit->type == UNIT_RUSH_SHIP) {
+						for (u32 j = 0; j < 8; ++j) {
+							invader.pos = { (f32)random_int(unit->pos.x - 5, unit->pos.x + 5), (f32)random_int(unit->pos.y - 5, unit->pos.y + 5) };
+							game->map.units.push_back(invader);
+						}
+						invader.type = UNIT_ELITE;
+						invader.hp = 6;
+						invader.damage = 4;
+						invader.pos = { (f32)random_int(unit->pos.x - 5, unit->pos.x + 5), (f32)random_int(unit->pos.y - 5, unit->pos.y + 5) };
+						game->map.units.push_back(invader);
+
+						invader.type = UNIT_MAGE;
+						invader.pos = { (f32)random_int(unit->pos.x - 5, unit->pos.x + 5), (f32)random_int(unit->pos.y - 5, unit->pos.y + 5) };
+						game->map.units.push_back(invader);
+
+						invader.type = UNIT_STONETHROWER;
+						invader.pos = { (f32)random_int(unit->pos.x - 5, unit->pos.x + 5), (f32)random_int(unit->pos.y - 5, unit->pos.y + 5) };
+						game->map.units.push_back(invader);
+					}
+					if (unit->type == UNIT_MAGE_SHIP) {
+						for (u32 j = 0; j < 2; ++j) {
+							invader.pos = { (f32)random_int(unit->pos.x - 5, unit->pos.x + 5), (f32)random_int(unit->pos.y - 5, unit->pos.y + 5) };
+							game->map.units.push_back(invader);
+						}
+						for (u32 j = 0; j < 3; ++j) {
+							invader.hp = 5;
+							invader.pos = { (f32)random_int(unit->pos.x - 5, unit->pos.x + 5), (f32)random_int(unit->pos.y - 5, unit->pos.y + 5) };
+							invader.type = UNIT_MAGE;
+							game->map.units.push_back(invader);
+						}
+					}
+					if (unit->type == UNIT_STONETHROWER_SHIP) {
+						for (u32 j = 0; j < 2; ++j) {
+							invader.pos = { (f32)random_int(unit->pos.x - 5, unit->pos.x + 5), (f32)random_int(unit->pos.y - 5, unit->pos.y + 5) };
+							game->map.units.push_back(invader);
+						}
+						for (u32 j = 0; j < 3; ++j) {
+							invader.hp = 5;
+							invader.pos = { (f32)random_int(unit->pos.x - 5, unit->pos.x + 5), (f32)random_int(unit->pos.y - 5, unit->pos.y + 5) };
+							invader.type = UNIT_STONETHROWER;
+							game->map.units.push_back(invader);
+						}
+					}
 					if (unit->type == UNIT_ELITE_SHIP) {
 						invader.pos = { (f32)random_int(unit->pos.x - 5, unit->pos.x + 5), (f32)random_int(unit->pos.y - 5, unit->pos.y + 5) };
 						game->map.units.push_back(invader);
@@ -1145,7 +1296,7 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 					}
 					if (unit->type == UNIT_GOLIATH_SHIP) {
 						invader.type = UNIT_GOLIATH;
-						invader.hp = invader.maxHp = 80;
+						invader.hp = invader.maxHp = 90;
 						invader.damage = 5;
 						invader.origin = { -1, -1 };
 						invader.pos = { unit->pos.x, unit->pos.y };
@@ -1153,7 +1304,7 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 					}
 					if (unit->type == UNIT_EDRIC_SHIP) {
 						invader.type = UNIT_EDRIC;
-						invader.hp = invader.maxHp = 50;
+						invader.hp = invader.maxHp = 75;
 						invader.damage = 20;
 						invader.origin = { -1, -1 };
 						invader.pos = { unit->pos.x, unit->pos.y };
@@ -1191,6 +1342,8 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 		if (proj->type == PROJECTILE_BOULDER) {
 			draw_texture_rotated(batch, scene->boulder, proj->x + game->map.x, proj->y + game->map.y, proj->rotation);
 		}
+		if (proj->type == PROJECTILE_STONE)
+			draw_texture_rotated(batch, scene->stone, proj->x + game->map.x, proj->y + game->map.y, proj->rotation);
 
 		proj->x += cos(deg_to_rad(proj->rotation)) * 6;
 		proj->y += sin(deg_to_rad(proj->rotation)) * 6;
@@ -1200,7 +1353,7 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 			continue;
 		}
 
-		const i32 cboxOffset = 5;
+		const i32 cboxOffset = -15;
 
 		f32 width = proj->type == PROJECTILE_FIREBALL ? 18 : proj->type == PROJECTILE_BOULDER ? scene->boulder.width : scene->cannonBall.width;
 		f32 height = proj->type == PROJECTILE_FIREBALL ? 39 : proj->type == PROJECTILE_BOULDER ? scene->boulder.height : scene->cannonBall.height;
@@ -1218,6 +1371,8 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 								curr->hp -= 1000; //instant kill
 							else if (proj->type == PROJECTILE_FIREBALL)
 								curr->hp -= 25;
+							else if (proj->type == PROJECTILE_STONE)
+								curr->hp -= 15;
 							else
 								curr->hp -= CANNON_DAMAGE;
 
@@ -1261,6 +1416,8 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 					else if (proj->type == PROJECTILE_BOULDER) {
 						curr->hp -= 1000; //instant kill
 					}
+					else if (proj->type == PROJECTILE_STONE)
+						curr->hp -= 1;
 					else {
 						curr->hp -= CANNON_DAMAGE;
 					}
@@ -1296,11 +1453,15 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 		draw_text(batch, &scene->font, format_text("%d gold", game->money), get_window_width() - 130, 20);
 	}
 
+	u32 sidebarHeight = 0;
+
 	//sidebar menu
 	if (game->state == GAME_IDLE && !demo) {
-		draw_panel(batch, scene->ninepatch, 0, 0, 1, 1);
-		tooltip(batch, &scene->font, scene->ninepatch, "OPEN MENU\n---------------\nOpens the side\nmenu.", 7, 4, { 10, 10, (f32)scene->maximizebutton.width, (f32)scene->maximizebutton_down.height }, mouse);
-		if (button(batch, scene->maximizebutton, scene->maximizebutton_down, 10, 10, mouse)) {
+		draw_panel(batch, scene->ninepatch, SIDEBAR_X_OFFSET, 0, 1, 1);
+		sidebarHeight = scene->ninepatch[0].height * 3;
+
+		tooltip(batch, &scene->font, scene->ninepatch, "OPEN MENU\n---------------\nOpens the side\nmenu.", 7, 4, { SIDEBAR_X_OFFSET + 10, 10, (f32)scene->maximizebutton.width, (f32)scene->maximizebutton_down.height }, mouse);
+		if (button(batch, scene->maximizebutton, scene->maximizebutton_down, SIDEBAR_X_OFFSET + 10, 10, mouse)) {
 			play_sound(scene->click2);
 			game->state = GAME_MENU;
 			return;
@@ -1308,69 +1469,88 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 	}
 
 	if (game->state == GAME_MENU) {
-		draw_panel(batch, scene->ninepatch, 0, 0, 1, 10);
-		tooltip(batch, &scene->font, scene->ninepatch, "CLOSE MENU\n---------------\nMinimizes the\nside menu.", 7, 4, { 10, 10, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
-		if (button(batch, scene->minimizebutton, scene->minimizebutton_down, 10, 10, mouse)) {
+		draw_panel(batch, scene->ninepatch, SIDEBAR_X_OFFSET, 0, 1, 9);
+		sidebarHeight = scene->ninepatch[0].height * 11;
+
+		tooltip(batch, &scene->font, scene->ninepatch, "CLOSE MENU\n---------------\nMinimizes the\nside menu.", 7, 4, { SIDEBAR_X_OFFSET + 10, 10, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
+		if (button(batch, scene->minimizebutton, scene->minimizebutton_down, SIDEBAR_X_OFFSET + 10, 10, mouse)) {
 			play_sound(scene->click2);
 			game->state = GAME_IDLE;
 			return;
 		}
-		tooltip(batch, &scene->font, scene->ninepatch, "BUILD\n---------------\nOpens the menu\nfor constructing\nbuildings.", 7, 5, { 10, 70, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
-		if (button(batch, scene->buildbutton, scene->buildbuttonDown, 10, 70, mouse)) {
+		tooltip(batch, &scene->font, scene->ninepatch, "BUILD\n---------------\nHOTKEY: B\nOpens the menu\nfor constructing\nbuildings.", 7, 6, { SIDEBAR_X_OFFSET + 10, 70, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
+		if (button(batch, scene->buildbutton, scene->buildbuttonDown, SIDEBAR_X_OFFSET + 10, 70, mouse)) {
 			play_sound(scene->click2);
 			game->state = GAME_BUILD_MENU;
 			return;
 		}
-		tooltip(batch, &scene->font, scene->ninepatch, "TRAIN\n---------------\nOpens the menu\nfor training\nunits.", 7, 5, { 10, 130, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
-		if (button(batch, scene->trainbutton, scene->trainbuttonDown, 10, 130, mouse)) {
+		//# add sell function (sell value = (current health / max health) * normal cost)
+//# add repair function (cost = 100 - ((current health / max health) * normal cost))
+		tooltip(batch, &scene->font, scene->ninepatch, "SELL\n-----------------\nHOTKEY: S\nSell a building back\nfor a portion of its\noriginal cost based\non its HP", 8, 7, { SIDEBAR_X_OFFSET + 10, 130, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
+		if (button(batch, scene->sellbutton, scene->sellbutton_down, SIDEBAR_X_OFFSET + 10, 130, mouse)) {
 			play_sound(scene->click2);
-			game->state = GAME_BUILD_MENU;
+			game->state = GAME_SELL;
+			return;
+		}
+
+		tooltip(batch, &scene->font, scene->ninepatch, "REPAIR\n-----------------\nHOTKEY: R\nRepairs a building for\na portion of its\noriginal cost based\non its HP", 8, 7, { SIDEBAR_X_OFFSET + 10, 190, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
+		if (button(batch, scene->repairbutton, scene->repairbutton_down, SIDEBAR_X_OFFSET + 10, 190, mouse)) {
+			play_sound(scene->click2);
+			game->state = GAME_REPAIR;
+			return;
+		}
+
+		tooltip(batch, &scene->font, scene->ninepatch, "TITLE SCREEN\n---------------\nHOTKEY: Q+P\nSurrender and\nreturn to title\nscreen", 7, 6, { SIDEBAR_X_OFFSET + 10, 250, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
+		if (button(batch, scene->backbutton, scene->backbutton_down, SIDEBAR_X_OFFSET + 10, 250, mouse)) {
+			play_sound(scene->click2);
+			*mainstate = MAIN_TITLE;
 			return;
 		}
 	}
 
 	if (game->state == GAME_BUILD_MENU) {
 		draw_panel(batch, scene->ninepatch, 0, 0, 1, 12);
+		sidebarHeight = scene->ninepatch[0].height * 14;
 		i32 yPos = -50;
 
-		tooltip(batch, &scene->font, scene->ninepatch, "CANCEL\n---------------\nCancels current\noption and\nreturns to the\nprevious menu.", 7, 6, { 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
-		if (button(batch, scene->cancelbutton, scene->cancelbutton_down, 10, yPos += 60, mouse)) {
+		tooltip(batch, &scene->font, scene->ninepatch, "CANCEL\n---------------\nHOTKEY: ESC\nCancels current\noption and\nreturns to the\nprevious menu.", 7, 7, { SIDEBAR_X_OFFSET + 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
+		if (button(batch, scene->cancelbutton, scene->cancelbutton_down, SIDEBAR_X_OFFSET + 10, yPos += 60, mouse)) {
 			play_sound(scene->click2);
 			game->state = GAME_MENU;
 			return;
 		}
-		tooltip(batch, &scene->font, scene->ninepatch, 
-			format_text("WALL\n---------------\nCOST: %d gold\nBuilds a wall\nthat prevents\ninvaders from\npassing through.", WALL_COST), 7, 7, { 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, 
-				mouse
-			);
-		if (button(batch, scene->wallbutton, scene->wallbuttonDown, 10, yPos += 60, mouse)) {
+		tooltip(batch, &scene->font, scene->ninepatch,
+			format_text("WALL\n---------------\nHOTKEY: W\nCOST: %d gold\nBuilds a wall\nthat prevents\ninvaders from\npassing through.", WALL_COST), 7, 8, { SIDEBAR_X_OFFSET + 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height },
+			mouse
+		);
+		if (button(batch, scene->wallbutton, scene->wallbuttonDown, SIDEBAR_X_OFFSET + 10, yPos += 60, mouse)) {
 			play_sound(scene->click2);
 			game->selectedBuilding = BUILDING_WALL;
 			game->state = GAME_BUILD;
 		}
-		tooltip(batch, &scene->font, scene->ninepatch, 
-			format_text("GATE\n---------------\nCOST: %d gold\nBuilds a gate\nthat friendly\nunits can pass\nthrough.", GATE_COST), 7, 7, { 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height },
+		tooltip(batch, &scene->font, scene->ninepatch,
+			format_text("GATE\n---------------\nHOTKEY: G\nCOST: %d gold\nBuilds a gate\nthat friendly\nunits can pass\nthrough.", GATE_COST), 7, 8, { SIDEBAR_X_OFFSET + 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height },
 			mouse
 		);
-		if (button(batch, scene->gatebutton, scene->gatebutton_down, 10, yPos += 60, mouse)) {
+		if (button(batch, scene->gatebutton, scene->gatebutton_down, SIDEBAR_X_OFFSET + 10, yPos += 60, mouse)) {
 			play_sound(scene->click2);
 			game->selectedBuilding = BUILDING_GATE;
 			game->state = GAME_BUILD;
 		}
 		tooltip(batch, &scene->font, scene->ninepatch,
-			format_text("CANNON\n---------------\nCOST: %d gold\nBuilds a cannon\nthat shoots at\noncoming\ninvaders. Can\nonly be built on\ntop of walls.", CANNON_COST), 7, 9, { 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height },
+			format_text("CANNON\n---------------\nHOTKEY: C\nCOST: %d gold\nBuilds a cannon\nthat shoots at\noncoming\ninvaders. Can\nonly be built on\ntop of walls.", CANNON_COST), 7, 10, { SIDEBAR_X_OFFSET + 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height },
 			mouse
 		);
-		if (button(batch, scene->cannonbutton, scene->cannonbutton_down, 10, yPos += 60, mouse)) {
+		if (button(batch, scene->cannonbutton, scene->cannonbutton_down, SIDEBAR_X_OFFSET + 10, yPos += 60, mouse)) {
 			play_sound(scene->click2);
 			game->selectedBuilding = BUILDING_CANNON;
 			game->state = GAME_BUILD;
 		}
-		tooltip(batch, &scene->font, scene->ninepatch, 
-			format_text("MAGE\n---------------\nCOST: %d gold\nTrains a mage\nto defend a wall.\nCasts fireballs at\noncoming invaders\nto do AOE damage.\nCan only be put on\ntop of walls.", MAGE_COST), 7, 10, { 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height },
+		tooltip(batch, &scene->font, scene->ninepatch,
+			format_text("MAGE\n---------------\nHOTKEY: M\nCOST: %d gold\nTrains a mage\nto defend a wall.\nCasts fireballs at\noncoming invaders\nto do AOE damage.\nCan only be put on\ntop of walls.", MAGE_COST), 7, 11, { SIDEBAR_X_OFFSET + 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height },
 			mouse
 		);
-		if (button(batch, scene->priestbutton, scene->priestbutton_down, 10, yPos += 60, mouse)) {
+		if (button(batch, scene->priestbutton, scene->priestbutton_down, SIDEBAR_X_OFFSET + 10, yPos += 60, mouse)) {
 			play_sound(scene->click2);
 			game->selectedBuilding = BUILDING_MAGE;
 			game->state = GAME_BUILD;
@@ -1379,8 +1559,8 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 
 	if (game->state == GAME_BUILD) {
 		draw_panel(batch, scene->ninepatch, 0, 0, 1, 1);
-		tooltip(batch, &scene->font, scene->ninepatch, "CANCEL\n---------------\nCancels current\noption and\nreturns to the\nprevious menu.", 7, 7, { 10, 30, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
-		if (button(batch, scene->cancelbutton, scene->cancelbutton_down, 10, 10, mouse)) {
+		tooltip(batch, &scene->font, scene->ninepatch, "CANCEL\n---------------\nHOTKEY: ESC\nCancels current\noption and\nreturns to the\nprevious menu.", 7, 8, { SIDEBAR_X_OFFSET + 10, 30, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
+		if (button(batch, scene->cancelbutton, scene->cancelbutton_down, SIDEBAR_X_OFFSET + 10, 10, mouse)) {
 			play_sound(scene->click2);
 			game->state = GAME_BUILD_MENU;
 			return;
@@ -1404,11 +1584,13 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 		}
 
 		bool enemiesNearby = false;
-		for (u16 i = 0; i < game->map.units.size(); ++i) {
-			Unit* curr = &game->map.units[i];
-			if (getDistanceE(curr->pos.x, curr->pos.y, (mouse.x - game->map.x), (mouse.y - game->map.y)) < 1000) {
-				enemiesNearby = true;
-				break;
+		if (is_button_down(MOUSE_BUTTON_LEFT)) {
+			for (u16 i = 0; i < game->map.units.size(); ++i) {
+				Unit* curr = &game->map.units[i];
+				if (getDistanceE(curr->pos.x, curr->pos.y, (mouse.x - game->map.x), (mouse.y - game->map.y)) < 1000) {
+					enemiesNearby = true;
+					break;
+				}
 			}
 		}
 
@@ -1446,43 +1628,6 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 					}
 					else if (is_button_pressed(MOUSE_BUTTON_LEFT))
 						push_notification(game, "Building location blocked");
-				}
-				if (game->selectedBuilding == BUILDING_GATE) {
-					if (
-						(game->map.walls[(x + 1) + y * game->map.width].active && game->map.walls[(x - 1) + y * game->map.width].active) ||
-						(game->map.walls[x + (y + 1) * game->map.width].active && game->map.walls[x + (y - 1)*game->map.width].active)
-						) {
-
-						if (!game->map.walls[x + y * game->map.width].gate) {
-							bool canPlace = false;
-							if (game->map.walls[x + y * game->map.width].active) {
-								if (GATE_COST <= game->money) {
-									game->money -= GATE_COST;
-									canPlace = true;
-								}
-								else
-									push_notification(game, "You do not have enough gold to build a gate");
-							}
-							if (game->map.walls[x + y * game->map.width].active == false) {
-								if (WALL_COST + GATE_COST <= game->money) {
-									game->money -= WALL_COST + GATE_COST;
-									canPlace = true;
-								}
-							}
-
-							if (canPlace) {
-								play_sound(scene->click);
-								Wall gate = { 0 };
-								gate.hp = WALL_HP;
-								gate.adjacency = 6;
-								gate.active = true;
-								gate.gate = true;
-								game->map.walls[x + y * game->map.width] = gate;
-
-								orient_walls(&game->map);
-							}
-						}
-					}
 				}
 				if (game->selectedBuilding == BUILDING_CANNON) {
 					bool cannonPresent = false;
@@ -1539,6 +1684,92 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 			}
 		}
 	}
+	bool enemiesNearby = false;
+	bool onWall = false;
+	Wall* mousedOver = NULL;
+
+	if (game->state == GAME_REPAIR || game->state == GAME_SELL) {
+		draw_panel(batch, scene->ninepatch, 0, 0, 1, 1);
+		sidebarHeight = scene->ninepatch[0].height * 3;
+		tooltip(batch, &scene->font, scene->ninepatch, "CANCEL\n---------------\nHOTKEY: ESC\nCancels current\noption and\nreturns to the\nprevious menu.", 7, 8, { SIDEBAR_X_OFFSET + 10, 30, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height }, mouse);
+		if (button(batch, scene->cancelbutton, scene->cancelbutton_down, SIDEBAR_X_OFFSET + 10, 10, mouse)) {
+			play_sound(scene->click2);
+			game->state = GAME_MENU;
+			return;
+		}
+
+		for (u16 i = 0; i < game->map.units.size(); ++i) {
+			Unit* curr = &game->map.units[i];
+			if (getDistanceE(curr->pos.x, curr->pos.y, (mouse.x - game->map.x), (mouse.y - game->map.y)) < 1000) {
+				enemiesNearby = true;
+				break;
+			}
+		}
+
+		i32 x = (mouse.x - game->map.x) / TILE_SIZE;
+		i32 y = (mouse.y - game->map.y) / TILE_SIZE;
+		if (game->map.walls[x + y * game->map.width].active) {
+			onWall = true;
+			mousedOver = &game->map.walls[x + y * game->map.width];
+		}
+	}
+	if (game->state == GAME_REPAIR) {
+		if (onWall) {
+			i32 cost = 100 - (((f32)mousedOver->hp / (f32)WALL_HP) * (f32)WALL_COST);
+			tooltip(batch, &scene->font, scene->ninepatch, format_text("Wall HP: %d\n\nRepair Cost: %d gold", mousedOver->hp, cost), 8, 2, { mouse.x, mouse.y, 1, 1 }, mouse);
+			if (enemiesNearby && is_button_down(MOUSE_BUTTON_LEFT))
+				push_notification(game, "Cannot repair with enemies nearby");
+
+			if (!enemiesNearby && is_button_released(MOUSE_BUTTON_LEFT) && game->money >= cost) {
+				game->money -= cost;
+				mousedOver->hp = WALL_HP;
+			}
+			if (game->money < cost && is_button_released(MOUSE_BUTTON_LEFT))
+				push_notification(game, "Not enough gold to repair this building");
+		}
+	}
+	if (game->state == GAME_SELL) {
+
+		u32 mousedTurretNdx = 0;
+		bool onTurret = false;
+		for (u32 i = 0; i < game->map.turrets.size(); ++i) {
+			Turret* curr = &game->map.turrets[i];
+			if (colliding({ (f32)(curr->x * TILE_SIZE) + game->map.x, (f32)(curr->y * TILE_SIZE) + game->map.y, TILE_SIZE, (f32)TILE_SIZE }, mouse.x, mouse.y)) {
+				onTurret = true;
+				mousedTurretNdx = i;
+			}
+		}
+
+		if (onWall || onTurret) {
+			i32 value = 0;
+
+			if (onTurret && onWall) {
+				value = game->map.turrets[mousedTurretNdx].type == TURRET_CANNON ? CANNON_COST : game->map.turrets[mousedTurretNdx].type == TURRET_MAGE ? MAGE_COST : 100;
+				tooltip(batch, &scene->font, scene->ninepatch, format_text("Wall HP: %d\n\nTurret Value: %d gold", mousedOver->hp, value), 8, 2, { mouse.x, mouse.y, 1, 1 }, mouse);
+			}
+			else if (onWall) {
+				value = ((f32)mousedOver->hp / (f32)WALL_HP) * (f32)WALL_COST;
+				tooltip(batch, &scene->font, scene->ninepatch, format_text("Wall HP: %d\n\nWall Value: %d gold", mousedOver->hp, value), 7, 2, { mouse.x, mouse.y, 1, 1 }, mouse);
+			}
+
+			if (enemiesNearby && is_button_down(MOUSE_BUTTON_LEFT))if (enemiesNearby && is_button_down(MOUSE_BUTTON_LEFT))
+				push_notification(game, "Cannot sell with enemies nearby");
+
+			if (!enemiesNearby && is_button_released(MOUSE_BUTTON_LEFT)) {
+				if (onTurret) {
+					game->money += value;
+					game->map.turrets.erase(game->map.turrets.begin() + mousedTurretNdx);
+				}
+				else if (onWall) {
+					game->money += value;
+					mousedOver->hp = 0;
+					mousedOver->active = false;
+					orient_walls(&game->map);
+				}
+			}
+		}
+	}
+
 	//notifications
 	if (!demo) {
 		i16 y = (get_window_height() / 2) - ((game->notifications.size() * 30) / 2);
@@ -1608,18 +1839,56 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, bool demo
 	else
 		game->timer++;
 
+	//hotkeys
+	if (is_key_released(KEY_R)) {
+		game->state = GAME_REPAIR;
+	}
+	if (is_key_released(KEY_B)) {
+		game->state = GAME_BUILD_MENU;
+	}
+	if (is_key_released(KEY_ESCAPE)) {
+		game->state = GAME_MENU;
+	}
+	if (is_key_released(KEY_S)) {
+		game->state = GAME_SELL;
+	}
+	if (is_key_released(KEY_Q) && is_key_down(KEY_0)) {
+		*mainstate = MAIN_EXIT;
+	}
+	if (is_key_down(KEY_Q) && is_key_down(KEY_P)) {
+		*mainstate = MAIN_TITLE;
+	}
+	if (is_key_down(KEY_Z) && is_key_down(KEY_X) && is_key_down(KEY_O) && is_key_down(KEY_P)) {
+		game->money = 99999;
+	}
+
+	if (game->state == GAME_BUILD_MENU || game->state == GAME_BUILD) {
+		if (is_key_released(KEY_W)) {
+			game->selectedBuilding = BUILDING_WALL;
+			game->state = GAME_BUILD;
+		}
+		if (is_key_released(KEY_C)) {
+			game->selectedBuilding = BUILDING_CANNON;
+			game->state = GAME_BUILD;
+		}
+		if (is_key_released(KEY_M)) {
+			game->selectedBuilding = BUILDING_MAGE;
+			game->state = GAME_BUILD;
+		}
+	}
+
 	//move camera
 	if (!demo) {
-		if (is_key_down(KEY_LEFT) && game->map.x < 0)
+		if ((is_key_down(KEY_LEFT) || (mouse.x < 30) && mouse.y > sidebarHeight) && game->map.x < 0)
 			game->map.x += 16;
-		if (is_key_down(KEY_RIGHT) && game->map.x > (-game->map.width * TILE_SIZE) + get_window_width())
+		if ((is_key_down(KEY_RIGHT) || mouse.x > get_window_width() - 60) && game->map.x > (-game->map.width * TILE_SIZE) + get_window_width())
 			game->map.x -= 16;
-		if (is_key_down(KEY_DOWN) && game->map.y > (-game->map.height * TILE_SIZE) + get_window_height())
+		if ((is_key_down(KEY_DOWN) || mouse.y > get_window_height() - 60) && game->map.y > (-game->map.height * TILE_SIZE) + get_window_height())
 			game->map.y -= 16;
-		if (is_key_down(KEY_UP) && game->map.y < 0)
+		if ((is_key_down(KEY_UP) || mouse.y < 30) && game->map.y < 0)
 			game->map.y += 16;
 	}
-}
+	}
 
 static inline
 void editor(RenderBatch* batch, Editor* editor, MapScene* scene, vec2 mouse) {
