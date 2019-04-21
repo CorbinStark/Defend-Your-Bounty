@@ -10,7 +10,7 @@ A tower-defence-esque game currently being developed for the OGA Game Jam. Build
 ![Defending the Bounty!](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/Previews/gameplay1.png)
 ![A Siege of a Lifetime](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/Previews/gameplay2.png)
 
-### Plan out a basic fort before the waves arrive!
+### Design your fort before the invaders arrive! This is the only break you'll get. Use it wisely.
 ![A Siege of a Lifetime](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/Previews/planning.png)
 
 ## Credits
