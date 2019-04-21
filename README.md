@@ -1,5 +1,5 @@
 # Defend-Your-Bounty
-A tower-defence-esque game currently being developed for the OGA Game Jam. Build a fort, defend waves of enemies trying to steal your bounty, and survive boss attacks. 
+A tower-defence-esque game currently being developed for the OGA Game Jam. Build a fort, defend waves of enemies trying to steal your bounty, and survive boss attacks. This game is created entirely with assets from OpenGameArt.org.
 
 ![Boat Landing](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/Previews/boat1.png)
 ![Defending the Bounty!](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/Previews/gameplay1.png)
@@ -20,12 +20,6 @@ URL:
 License(s):
     * CC-BY 3.0 ( http://creativecommons.org/licenses/by/3.0/legalcode )
 
-SPECIAL ATTRIBUTION INSTRUCTIONS:
-    Please read this page for attribution instructions: http://www.matthewpablo.com/services
-
-File(s):
-    * Blackmoor Tides Collection.zip
-
 ----------------------------------------
 
 Title:
@@ -39,9 +33,6 @@ URL:
 
 License(s):
     * CC0 ( http://creativecommons.org/publicdomain/zero/1.0/legalcode )
-
-File(s):
-    * rpg_sound_pack.zip
 
 ----------------------------------------
 
@@ -57,9 +48,6 @@ URL:
 License(s):
     * CC-BY 3.0 ( http://creativecommons.org/licenses/by/3.0/legalcode )
 
-File(s):
-    * spells.7z
-
 ----------------------------------------
 
 Title:
@@ -73,15 +61,6 @@ URL:
 
 License(s):
     * CC-BY-SA 3.0 ( http://creativecommons.org/licenses/by-sa/3.0/legalcode )
-
-Copyright/Attribution Notice:
-    This work, made by Unnamed (Viktor.Hahn@web.de), is
-licensed under the Creative Commons Attribution-ShareAlike 3.0 Unported License.
-http://creativecommons.org/licenses/by-sa/3.0/
-
-
-File(s):
-    * explosions.zip
 
 ----------------------------------------
 
@@ -97,12 +76,6 @@ URL:
 License(s):
     * CC0 ( http://creativecommons.org/publicdomain/zero/1.0/legalcode )
 
-Copyright/Attribution Notice:
-    Credit "Kenney.nl" or "www.kenney.nl", this is not mandatory.
-
-File(s):
-    * kenney_piratepack.zip
-
 ----------------------------------------
 
 Title:
@@ -116,12 +89,6 @@ URL:
 
 License(s):
     * CC0 ( http://creativecommons.org/publicdomain/zero/1.0/legalcode )
-
-Copyright/Attribution Notice:
-    Credit "Kenney.nl" or "www.kenney.nl", this is not mandatory.
-
-File(s):
-    * kenney_medievalRTSpack.zip
 
 ----------------------------------------
 
@@ -137,12 +104,6 @@ URL:
 License(s):
     * CC0 ( http://creativecommons.org/publicdomain/zero/1.0/legalcode )
 
-Copyright/Attribution Notice:
-    Credit "Kenney.nl" or "www.kenney.nl", this is not mandatory.
-
-File(s):
-    * UIpack_RPG.zip
-
 ----------------------------------------
 
 Title:
@@ -157,12 +118,6 @@ URL:
 License(s):
     * CC0 ( http://creativecommons.org/publicdomain/zero/1.0/legalcode )
 
-SPECIAL ATTRIBUTION INSTRUCTIONS:
-    If you want to, credit me as Photoshopwizard. I would love if you linked me to your project, as well!
-
-File(s):
-    * Expansion.svg
-
 ----------------------------------------
 
 Title:
@@ -176,12 +131,6 @@ URL:
 
 License(s):
     * CC0 ( http://creativecommons.org/publicdomain/zero/1.0/legalcode )
-
-Copyright/Attribution Notice:
-    Not necessary, but you can say "Good Neighbors font by Clint Bellanger".
-
-File(s):
-    * good_neighbors.png
 
 ----------------------------------------
 
