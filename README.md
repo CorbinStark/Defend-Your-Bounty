@@ -73,7 +73,7 @@ License(s):
 ----------------------------------------
 
 Title:
-    Pirate pack (190+)
+    Pirate pack (190+)   (This work has been modified.)
 
 Author:
     Kenney
@@ -101,7 +101,7 @@ License(s):
 ----------------------------------------
 
 Title:
-    UI pack: RPG extension
+    UI pack: RPG extension   (This work has been modified.)
 
 Author:
     Kenney
@@ -115,7 +115,7 @@ License(s):
 ----------------------------------------
 
 Title:
-    UI Pack Expansion
+    UI Pack Expansion   (This work has been modified.)
 
 Author:
     photoshopwizard
