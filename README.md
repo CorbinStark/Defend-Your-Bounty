@@ -1,9 +1,17 @@
 # Defend-Your-Bounty
-A tower-defence-esque game currently being developed for the OGA Game Jam. Build a fort, defend waves of enemies trying to steal your bounty, and survive boss attacks. This game is created entirely with assets from OpenGameArt.org.
+A tower-defence-esque game currently being developed for the OGA Game Jam. Build a fort, defend waves of enemies trying to steal your bounty, and survive boss attacks. This game is created entirely with assets from OpenGameArt.org. My appreciation goes out to every artist that uploads there for aspiring game devs (who cant draw, or write music).
 
+## Gameplay
+
+### Ships bring invaders to shore: fight them off with your cannons!
 ![Boat Landing](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/Previews/boat1.png)
+
+### Invaders will try and steal your bounty! Build walls to prevent them from ever laying eyes on your treasure.
 ![Defending the Bounty!](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/Previews/gameplay1.png)
 ![A Siege of a Lifetime](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/Previews/gameplay2.png)
+
+### Plan out a basic fort before the waves arrive!
+![A Siege of a Lifetime](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/Previews/planning.png)
 
 ## Credits
 
