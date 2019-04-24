@@ -7,7 +7,7 @@
 //TODO:
 //
 // KEY: # = not done
-//		X = done
+//      X = done
 //
 //# save/load walls correctly
 //X cannons should rotate and shoot at invaders
@@ -23,16 +23,16 @@
 //X custom waves
 //X prevent player from blocking unit paths with wall placement
 //X map selection screen
-//# maybe small cutscene at beginning? story was part of grading criteria
 //X sound effects
 //X mage invader
 //X fix place building display square so it locks to the grid when moving the camera
-//# add rock throwers (invader and a cannon)
+//X add rock throwers (invader and a cannon)
 //X add sell function (sell value = (current health / max health) * normal cost)
 //X add repair function (cost = 100 - ((current health / max health) * normal cost))
 //X game pauses before first wave, lets player design base a bit before they can press a button to start the waves coming
 //X Screen scrolling when mouse on edges
 //X Hotkeys
+//# options menu
 
 const i32 TILE_SIZE = 64;
 const i32 NUM_LAYERS = 3;
@@ -41,15 +41,16 @@ const i32 CANNON_DAMAGE = 2;
 const i32 WALL_HP = 80;
 const i32 WALL_COST = 100;
 const i32 GATE_COST = 20;
+const i32 STONETHROWER_COST = 100;
 const i32 CANNON_COST = 150;
-const i32 MAGE_COST = 400;
+const i32 MAGE_COST = 300;
 const i32 GOLD_BOUNTY = 50;
 const i32 BOAT_HP = 25;
 const i32 ANIMATION_DELAY = 7;
 const i32 FIREBALL_RADIUS = 80;
 const i32 SIDEBAR_X_OFFSET = 0;
 
-const f32 MAGE_RANGE = 450;
+const f32 MAGE_RANGE = 380;
 const f32 STONETHROWER_RANGE = 350;
 const f32 UNIT_RANGE = 450;
 const f32 GOLIATH_RANGE = 800;
@@ -93,7 +94,7 @@ enum BuildingType {
 	BUILDING_BARRACKS,
 	BUILDING_CANNON,
 	BUILDING_MAGE,
-	BUILDING_GATE
+	BUILDING_STONETHROWER
 };
 
 enum Owner {
@@ -204,8 +205,8 @@ struct MapScene {
 	Texture barmid;
 	Texture barright;
 
-	Texture gatebutton;
-	Texture gatebutton_down;
+	Texture stonebutton;
+	Texture stonebutton_down;
 	Texture cannonbutton;
 	Texture cannonbutton_down;
 	Texture minimizebutton;
@@ -227,7 +228,11 @@ struct MapScene {
 	Texture cancelbutton;
 	Texture cancelbutton_down;
 
+	Texture buttonRound;
+	Texture checkmark;
+
 	BitmapFont font;
+	BitmapFont bigfont;
 
 	Texture ninepatch[9];
 
@@ -467,8 +472,8 @@ MapScene load_scene() {
 	scene.priestbutton = load_texture("data/art/buttons/priestbutton.png", GL_LINEAR);
 	scene.priestbutton_down = load_texture("data/art/buttons/priestbutton_down.png", GL_LINEAR);
 
-	scene.gatebutton = load_texture("data/art/buttons/gatebutton.png", GL_LINEAR);
-	scene.gatebutton_down = load_texture("data/art/buttons/gatebutton_down.png", GL_LINEAR);
+	scene.stonebutton = load_texture("data/art/buttons/stonebutton.png", GL_LINEAR);
+	scene.stonebutton_down = load_texture("data/art/buttons/stonebutton_down.png", GL_LINEAR);
 	scene.wallbutton = load_texture("data/art/buttons/wallbutton.png", GL_LINEAR);
 	scene.wallbuttonDown = load_texture("data/art/buttons/wallbutton_down.png", GL_LINEAR);
 	scene.minimizebutton = load_texture("data/art/buttons/minimizebutton.png", GL_LINEAR);
@@ -486,7 +491,11 @@ MapScene load_scene() {
 	scene.cancelbutton = load_texture("data/art/buttons/cancelbutton.png", GL_LINEAR);
 	scene.cancelbutton_down = load_texture("data/art/buttons/cancelbutton_down.png", GL_LINEAR);
 
+	scene.buttonRound = load_texture("data/art/buttons/buttonRound.png", GL_LINEAR);
+	scene.checkmark = load_texture("data/art/buttons/iconCheck.png", GL_LINEAR);
+
 	scene.font = load_neighbors_font(2);
+	scene.bigfont = load_neighbors_font(4);
 
 	load_ninepatch("data/art/panel_brown.png", scene.ninepatch);
 
@@ -936,17 +945,9 @@ static inline
 void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState* mainstate, bool demo = false) {
 	draw_map(batch, &game->map, scene);
 
-	if (goldpile_depleted(&game->map)) {
-		push_notification(game, "Your bounty has been stolen! (Just quit, there's no game over programmed in yet)");
-	}
-
 	//new wave spawns
 	if (game->timer == game->nextWaveTime) {
-		if (game->currentWave == game->waves.size() && game->map.units.size() == 0) {
-			push_notification(game, "You have defeated the invaders! (Just quit, there's no victory programmed in yet)");
-			//you win this map~!
-		}
-		else if (game->currentWave < game->waves.size()) {
+		if (game->currentWave < game->waves.size()) {
 			push_notification(game, "An invasion force is spotted off the coast!");
 			game->timer = 0;
 
@@ -998,6 +999,8 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState
 			draw_texture_rotated(batch, scene->cannon, (turret->x * TILE_SIZE) + game->map.x, (turret->y * TILE_SIZE) + game->map.y, turret->rotation);
 		if (turret->type == TURRET_MAGE)
 			draw_texture(batch, scene->mage, (turret->x * TILE_SIZE) + game->map.x, (turret->y * TILE_SIZE) + game->map.y);
+		if(turret->type == TURRET_STONETHROWER)
+			draw_texture(batch, scene->stonethrower, (turret->x * TILE_SIZE) + game->map.x, (turret->y * TILE_SIZE) + game->map.y);
 
 		if (turret->timer % turret->shotDelay == 0 && target != NULL && dist < CANNON_RANGE) {
 			turret->rotation = get_angle({ (f32)turret->x * TILE_SIZE, (f32)turret->y * TILE_SIZE }, { target->pos.x + (random_int(6, scene->attackerMage.width) - 10), target->pos.y + random_int(6, (scene->attackerMage.height) - 10) });
@@ -1017,6 +1020,11 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState
 				ball.y = (turret->y * TILE_SIZE) + (scene->cannon.height / 2) - (39 / 2);
 				ball.animation = create_animation("fire", scene->fire, 2, 18, 39, 6);
 			}
+			if (turret->type == TURRET_STONETHROWER) {
+				ball.type = PROJECTILE_STONE;
+				ball.x = (turret->x * TILE_SIZE) + (scene->cannon.width / 2) - (scene->stone.width / 2);
+				ball.y = (turret->y * TILE_SIZE) + (scene->cannon.height / 2) - (scene->stone.height / 2);
+			}
 			game->map.projectiles.push_back(ball);
 		}
 	}
@@ -1029,8 +1037,12 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState
 			play_sound(scene->coin[random_int(0, 2)]);
 
 			if (unit->type == UNIT_GOLIATH) {
-				push_status_text(game, unit->pos, "+160 gold");
-				game->money += 160;
+				push_status_text(game, unit->pos, "+360 gold");
+				game->money += 360;
+			}
+			if (unit->type == UNIT_EDRIC) {
+				push_status_text(game, unit->pos, "+320 gold");
+				game->money += 320;
 			}
 			else {
 				push_status_text(game, unit->pos, format_text("+%d gold", GOLD_BOUNTY));
@@ -1086,10 +1098,12 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState
 					};
 
 					unit->state = UNIT_WALKING;
-					if (getDistanceE(unit->pos.x, unit->pos.y, (wallx * TILE_SIZE), (wally * TILE_SIZE)) <= unit->type == UNIT_MAGE ? MAGE_RANGE : STONETHROWER_RANGE)
-						unit->dest = dest;
-					else
+					unit->dest = dest;
+					if (getDistanceE(unit->pos.x, unit->pos.y, (wallx * TILE_SIZE), (wally * TILE_SIZE)) < (unit->type == UNIT_MAGE ? MAGE_RANGE : STONETHROWER_RANGE)) {
+						BMT_LOG(DEBUG, "%f < %f", getDistanceE(unit->pos.x, unit->pos.y, (wallx * TILE_SIZE), (wally * TILE_SIZE)), (unit->type == UNIT_MAGE ? MAGE_RANGE : STONETHROWER_RANGE));
+						unit->dest = unit->pos;
 						unit->state = UNIT_RANGING;
+					}
 					unit->origin = { (f32)(wallx * TILE_SIZE), (f32)wally * TILE_SIZE };
 				}
 				else {
@@ -1296,15 +1310,15 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState
 					}
 					if (unit->type == UNIT_GOLIATH_SHIP) {
 						invader.type = UNIT_GOLIATH;
-						invader.hp = invader.maxHp = 90;
-						invader.damage = 5;
+						invader.hp = invader.maxHp = 60;
+						invader.damage = 3;
 						invader.origin = { -1, -1 };
 						invader.pos = { unit->pos.x, unit->pos.y };
 						game->map.units.push_back(invader);
 					}
 					if (unit->type == UNIT_EDRIC_SHIP) {
 						invader.type = UNIT_EDRIC;
-						invader.hp = invader.maxHp = 75;
+						invader.hp = invader.maxHp = 55;
 						invader.damage = 20;
 						invader.origin = { -1, -1 };
 						invader.pos = { unit->pos.x, unit->pos.y };
@@ -1424,9 +1438,9 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState
 
 					play_sound(scene->explosionBang);
 					Explosion explosion = { 0 };
-					explosion.animation = create_animation("explode", scene->explosion, 5, 74, 75, ANIMATION_DELAY, proj->type == PROJECTILE_CANNONBALL ? 0.6 : 1.5);
-					explosion.x = proj->x + (scene->cannonBall.width / 2) - ((74 * (proj->type == PROJECTILE_CANNONBALL ? 0.6 : 1.5)) / 2);
-					explosion.y = proj->y + (scene->cannonBall.height / 2) - ((75 * (proj->type == PROJECTILE_CANNONBALL ? 0.6 : 1.5)) / 2);
+					explosion.animation = create_animation("explode", scene->explosion, 5, 74, 75, ANIMATION_DELAY, proj->type == PROJECTILE_FIREBALL || proj->type == PROJECTILE_BOULDER ? 1.5 : 0.6);
+					explosion.x = proj->x + (scene->cannonBall.width / 2) - ((74 * (proj->type == PROJECTILE_FIREBALL || proj->type == PROJECTILE_BOULDER ? 1.5 : 0.6)) / 2);
+					explosion.y = proj->y + (scene->cannonBall.height / 2) - ((75 * (proj->type == PROJECTILE_FIREBALL || proj->type == PROJECTILE_BOULDER ? 1.5 : 0.6)) / 2);
 					game->map.explosions.push_back(explosion);
 					game->map.projectiles.erase(game->map.projectiles.begin() + i);
 					break;
@@ -1509,7 +1523,7 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState
 	}
 
 	if (game->state == GAME_BUILD_MENU) {
-		draw_panel(batch, scene->ninepatch, 0, 0, 1, 12);
+		draw_panel(batch, scene->ninepatch, 0, 0, 1, 9);
 		sidebarHeight = scene->ninepatch[0].height * 14;
 		i32 yPos = -50;
 
@@ -1529,12 +1543,12 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState
 			game->state = GAME_BUILD;
 		}
 		tooltip(batch, &scene->font, scene->ninepatch,
-			format_text("GATE\n---------------\nHOTKEY: G\nCOST: %d gold\nBuilds a gate\nthat friendly\nunits can pass\nthrough.", GATE_COST), 7, 8, { SIDEBAR_X_OFFSET + 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height },
+			format_text("STONE THROWER\n---------------\nHOTKEY: G\nCOST: %d gold\nTrains a stone\nthrower to defend\na wall. Attacks\nfaster than\na cannon, for less\ndamage. Can\nonly be put on\ntop of walls.", STONETHROWER_COST), 7, 12, { SIDEBAR_X_OFFSET + 10, (f32)yPos + 60, (f32)scene->cancelbutton.width, (f32)scene->cancelbutton.height },
 			mouse
 		);
-		if (button(batch, scene->gatebutton, scene->gatebutton_down, SIDEBAR_X_OFFSET + 10, yPos += 60, mouse)) {
+		if (button(batch, scene->stonebutton, scene->stonebutton_down, SIDEBAR_X_OFFSET + 10, yPos += 60, mouse)) {
 			play_sound(scene->click2);
-			game->selectedBuilding = BUILDING_GATE;
+			game->selectedBuilding = BUILDING_STONETHROWER;
 			game->state = GAME_BUILD;
 		}
 		tooltip(batch, &scene->font, scene->ninepatch,
@@ -1655,6 +1669,7 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState
 					else if (is_button_pressed(MOUSE_BUTTON_LEFT))
 						push_notification(game, "You must place the cannon on an empty wall");
 				}
+
 				if (game->selectedBuilding == BUILDING_MAGE) {
 					bool cannonPresent = false;
 					for (u16 i = 0; i < game->map.turrets.size(); ++i) {
@@ -1680,6 +1695,33 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState
 					}
 					else if (is_button_pressed(MOUSE_BUTTON_LEFT))
 						push_notification(game, "You must place the mage on an empty wall");
+				}
+
+				if (game->selectedBuilding == BUILDING_STONETHROWER) {
+					bool cannonPresent = false;
+					for (u16 i = 0; i < game->map.turrets.size(); ++i) {
+						if (game->map.turrets[i].x == x && game->map.turrets[i].y == y) {
+							cannonPresent = true;
+							break;
+						}
+					}
+					if (game->map.walls[x + y * game->map.width].active && !cannonPresent) {
+						if (STONETHROWER_COST <= game->money) {
+							game->money -= STONETHROWER_COST;
+							play_sound(scene->click);
+
+							Turret mage = { 0 };
+							mage.type = TURRET_STONETHROWER;
+							mage.shotDelay = 105;
+							mage.x = (mouse.x - game->map.x) / TILE_SIZE;
+							mage.y = (mouse.y - game->map.y) / TILE_SIZE;
+							game->map.turrets.push_back(mage);
+						}
+						else
+							push_notification(game, "You do not have enough gold to train a stone thrower");
+					}
+					else if (is_button_pressed(MOUSE_BUTTON_LEFT))
+						push_notification(game, "You must place the stone thrower on an empty wall");
 				}
 			}
 		}
@@ -1839,6 +1881,40 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState
 	else
 		game->timer++;
 
+	if (game->currentWave > game->waves.size() - 1 && game->map.units.size() == 0) {
+		i32 xPos = (get_window_width() / 2) - (scene->buttonlong.width / 2);
+		i32 yPos = (get_window_height() / 2) + (scene->buttonlong.height / 2);
+		if (button(batch, scene->buttonlong, scene->buttonlong_down, xPos, yPos, mouse)) {
+			*mainstate = MAIN_RETURN_TO_TITLE;
+		}
+		Rect btnrect = { xPos, yPos, scene->buttonlong.width,  scene->buttonlong.height };
+		bool collided = colliding(btnrect, mouse.x, mouse.y);
+		if (is_button_down(MOUSE_BUTTON_LEFT) && collided)
+			draw_text(batch, &scene->font, "Back", xPos + 65, yPos + 12);
+		else
+			draw_text(batch, &scene->font, "Back", xPos + 65, yPos + 6);
+
+		draw_text(batch, &scene->bigfont, "VICTORY! You have defeated the invaders!", (get_window_width() / 2) - (get_string_width(&scene->bigfont, "VICTORY! You have defeated the invaders!") / 2), 50);
+		//you win this map~!
+	}
+
+	if (goldpile_depleted(&game->map) || (game->map.turrets.size() == 0 && game->map.units.size() > 0)) {
+		i32 xPos = (get_window_width() / 2) - (scene->buttonlong.width / 2);
+		i32 yPos = (get_window_height() / 2) + (scene->buttonlong.height / 2);
+		if (button(batch, scene->buttonlong, scene->buttonlong_down, xPos, yPos, mouse)) {
+			*mainstate = MAIN_RETURN_TO_TITLE;
+		}
+		Rect btnrect = { xPos, yPos, scene->buttonlong.width,  scene->buttonlong.height };
+		bool collided = colliding(btnrect, mouse.x, mouse.y);
+		if (is_button_down(MOUSE_BUTTON_LEFT) && collided)
+			draw_text(batch, &scene->font, "Quit", xPos + 65, yPos + 12);
+		else
+			draw_text(batch, &scene->font, "Quit", xPos + 65, yPos + 6);
+
+		draw_text(batch, &scene->bigfont, "DEFEAT! Your bounty is forfeit!", (get_window_width() / 2) - (get_string_width(&scene->bigfont, "DEFEAT! Your bounty is forfeit!") / 2), 50);
+		//you win this map~!
+	}
+
 	//hotkeys
 	if (is_key_released(KEY_R)) {
 		game->state = GAME_REPAIR;
@@ -1865,6 +1941,10 @@ void game(RenderBatch* batch, Game* game, MapScene* scene, vec2 mouse, MainState
 	if (game->state == GAME_BUILD_MENU || game->state == GAME_BUILD) {
 		if (is_key_released(KEY_W)) {
 			game->selectedBuilding = BUILDING_WALL;
+			game->state = GAME_BUILD;
+		}
+		if (is_key_released(KEY_G)) {
+			game->selectedBuilding = BUILDING_STONETHROWER;
 			game->state = GAME_BUILD;
 		}
 		if (is_key_released(KEY_C)) {

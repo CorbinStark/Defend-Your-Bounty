@@ -12,6 +12,9 @@ enum MainState {
 	MAIN_GAME,
 	MAIN_EDITOR,
 	MAIN_CHOOSE_MAP,
+	MAIN_RETURN_TO_TITLE,
+	MAIN_GO_TO_OPTIONS,
+	MAIN_CONFIRM,
 	MAIN_EXIT
 };
 
@@ -38,6 +41,51 @@ struct Animation {
 struct BitmapFont {
 	Texture chars[SCHAR_MAX];
 };
+
+struct Config {
+	bool vsync;
+	bool fullscreen;
+	bool lastFsState;
+	u8 volume;
+};
+
+static inline
+Config load_config() {
+	Config con = { 0 };
+
+	FILE *file = fopen("data/config.txt", "r");
+	if (file == NULL)
+		BMT_LOG(FATAL_ERROR, "Error opening file");
+
+	i32 fullscreen;
+	i32 vsync;
+	i32 volume;
+	fscanf(file, "%d", &fullscreen);
+	fscanf(file, "%d", &vsync);
+	fscanf(file, "%d", &volume);
+
+	con.fullscreen = fullscreen == 0 ? false : true;
+	con.lastFsState = fullscreen;
+	con.vsync = vsync == 0 ? false : true;
+	con.volume = volume;
+
+	fclose(file);
+
+	return con;
+}
+
+static inline
+void save_config(Config con) {
+	FILE *file = fopen("data/config.txt", "w");
+	if (file == NULL)
+		BMT_LOG(FATAL_ERROR, "Error opening file");
+
+	fprintf(file, "%d\n", con.fullscreen);
+	fprintf(file, "%d\n", con.vsync);
+	fprintf(file, "%d\n", con.volume);
+
+	fclose(file);
+}
 
 typedef std::vector<Animation> AnimationList;
 
@@ -261,6 +309,27 @@ void draw_panel(RenderBatch* batch, Texture ninepatch[9], i32 x, i32 y, u16 widt
 			draw_texture(batch, ninepatch[4], (i * ninepatch[0].width) + x, (j * ninepatch[0].height) + y);
 		}
 	}
+}
+
+static inline
+bool text_button(RenderBatch* batch, BitmapFont* font, std::string str, i32* yInitial, vec2 mouse) {
+	f32 height = 16 * 3;
+	f32 width = get_string_width(font, str.c_str());
+	f32 xPos = (get_window_width() / 2) - (width / 2);
+	f32 yPos = *yInitial += (16 * 3) + 15;
+	bool collided = colliding({ xPos, yPos, width, height }, { mouse.x, mouse.y });
+	if (collided) {
+		str[0] = '>';
+		str[1] = ' ';
+		draw_text(batch, font, str.c_str(), xPos, yPos);
+	}
+	else {
+		str[0] = ' ';
+		str[1] = ' ';
+		draw_text(batch, font, str.c_str(), xPos, yPos);
+	}
+
+	return collided & is_button_released(MOUSE_BUTTON_LEFT);
 }
 
 static inline
