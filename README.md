@@ -1,5 +1,5 @@
 # Defend-Your-Bounty
-A tower-defence-esque game developed for the OGA Game Jam. Build a fort, defend waves of enemies trying to steal your bounty, and survive boss attacks. This game is created entirely with assets from OpenGameArt.org. My appreciation goes out to every artist that uploads there for aspiring game devs (who cant draw, or write music).
+A tower-defence-esque game developed for the OGA Game Jam. Build a fort, defend waves of enemies trying to steal your bounty, and survive boss attacks. This game is created entirely with assets from OpenGameArt.org. My appreciation goes out to every artist that uploads there for aspiring game devs.
 
 ## Gameplay
 
